@@ -1,8 +1,9 @@
 DIRS = ../config
 INITDIRS = $(DIRS:%=init-%)
 BUILDDIRS = $(DIRS:%=build-%)
-CLEANDIRS = $(DIRS:%=clean-%)
 TESTDIRS = $(DIRS:%=test-%)
+PUBLISHDIRS = $(DIRS:%=publish-%)
+CLEANDIRS = $(DIRS:%=clean-%)
 
 build: $(BUILDDIRS)
 $(BUILDDIRS):
@@ -15,6 +16,10 @@ $(INITDIRS):
 test: $(TESTDIRS)
 $(TESTDIRS):
 	$(MAKE) -C $(@:test-%=%) test
+
+publish: $(PUBLISHDIRS)
+$(PUBLISHDIRS):
+	$(MAKE) -C $(@:publish-%=%) publish
 
 clean: $(CLEANDIRS)
 $(CLEANDIRS):
