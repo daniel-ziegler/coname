@@ -4,9 +4,9 @@ BUILDDIRS = $(DIRS:%=build-%)
 CLEANDIRS = $(DIRS:%=clean-%)
 TESTDIRS = $(DIRS:%=test-%)
 
-$(DIRS): $(BUILDDIRS)
+build: $(BUILDDIRS)
 $(BUILDDIRS):
-	$(MAKE) -C $(@:build-%=%)
+	$(MAKE) -C $(@:build-%=%) build
 
 init: $(INITDIRS)
 $(INITDIRS):
@@ -26,4 +26,4 @@ $(CLEANDIRS):
 .PHONY: subdirs $(BUILDDIRS)
 .PHONY: subdirs $(TESTDIRS)
 .PHONY: subdirs $(CLEANDIRS)
-.PHONY: all init clean test
+.PHONY: build init clean test
