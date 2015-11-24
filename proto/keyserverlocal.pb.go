@@ -4,9 +4,12 @@
 
 package proto
 
+import proto1 "github.com/andres-erbsen/protobuf/proto"
+import fmt "fmt"
+import math "math"
+
 // discarding unused import gogoproto "gogoproto"
 
-import fmt "fmt"
 import bytes "bytes"
 
 import strings "strings"
@@ -16,6 +19,11 @@ import strconv "strconv"
 import reflect "reflect"
 
 import io "io"
+
+// Reference imports to suppress errors if they are not otherwise used.
+var _ = proto1.Marshal
+var _ = fmt.Errorf
+var _ = math.Inf
 
 // ReplicaState contains the persistent internal state of a single replica.
 // Additional on-disk state is descried in server/table.go.
@@ -138,16 +146,18 @@ func (this *ReplicaState) GoString() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings.Join([]string{`&proto.ReplicaState{` +
-		`NextIndexLog:` + fmt.Sprintf("%#v", this.NextIndexLog),
-		`NextIndexVerifier:` + fmt.Sprintf("%#v", this.NextIndexVerifier),
-		`PreviousSummaryHash:` + fmt.Sprintf("%#v", this.PreviousSummaryHash),
-		`LastEpochDelimiter:` + strings.Replace(this.LastEpochDelimiter.GoString(), `&`, ``, 1),
-		`ThisReplicaNeedsToSignLastEpoch:` + fmt.Sprintf("%#v", this.ThisReplicaNeedsToSignLastEpoch),
-		`PendingUpdates:` + fmt.Sprintf("%#v", this.PendingUpdates),
-		`LatestTreeSnapshot:` + fmt.Sprintf("%#v", this.LatestTreeSnapshot),
-		`LastEpochNeedsRatification:` + fmt.Sprintf("%#v", this.LastEpochNeedsRatification) + `}`}, ", ")
-	return s
+	s := make([]string, 0, 12)
+	s = append(s, "&proto.ReplicaState{")
+	s = append(s, "NextIndexLog: "+fmt.Sprintf("%#v", this.NextIndexLog)+",\n")
+	s = append(s, "NextIndexVerifier: "+fmt.Sprintf("%#v", this.NextIndexVerifier)+",\n")
+	s = append(s, "PreviousSummaryHash: "+fmt.Sprintf("%#v", this.PreviousSummaryHash)+",\n")
+	s = append(s, "LastEpochDelimiter: "+strings.Replace(this.LastEpochDelimiter.GoString(), `&`, ``, 1)+",\n")
+	s = append(s, "ThisReplicaNeedsToSignLastEpoch: "+fmt.Sprintf("%#v", this.ThisReplicaNeedsToSignLastEpoch)+",\n")
+	s = append(s, "PendingUpdates: "+fmt.Sprintf("%#v", this.PendingUpdates)+",\n")
+	s = append(s, "LatestTreeSnapshot: "+fmt.Sprintf("%#v", this.LatestTreeSnapshot)+",\n")
+	s = append(s, "LastEpochNeedsRatification: "+fmt.Sprintf("%#v", this.LastEpochNeedsRatification)+",\n")
+	s = append(s, "}")
+	return strings.Join(s, "")
 }
 func valueToGoStringKeyserverlocal(v interface{}, typ string) string {
 	rv := reflect.ValueOf(v)
@@ -446,8 +456,12 @@ func (m *ReplicaState) Unmarshal(data []byte) error {
 	l := len(data)
 	iNdEx := 0
 	for iNdEx < l {
+		preIndex := iNdEx
 		var wire uint64
 		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowKeyserverlocal
+			}
 			if iNdEx >= l {
 				return io.ErrUnexpectedEOF
 			}
@@ -460,6 +474,12 @@ func (m *ReplicaState) Unmarshal(data []byte) error {
 		}
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ReplicaState: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ReplicaState: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
 		switch fieldNum {
 		case 1:
 			if wireType != 0 {
@@ -467,6 +487,9 @@ func (m *ReplicaState) Unmarshal(data []byte) error {
 			}
 			m.NextIndexLog = 0
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowKeyserverlocal
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -483,6 +506,9 @@ func (m *ReplicaState) Unmarshal(data []byte) error {
 			}
 			m.NextIndexVerifier = 0
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowKeyserverlocal
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -499,6 +525,9 @@ func (m *ReplicaState) Unmarshal(data []byte) error {
 			}
 			var byteLen int
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowKeyserverlocal
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -524,6 +553,9 @@ func (m *ReplicaState) Unmarshal(data []byte) error {
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowKeyserverlocal
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -534,10 +566,10 @@ func (m *ReplicaState) Unmarshal(data []byte) error {
 					break
 				}
 			}
-			postIndex := iNdEx + msglen
 			if msglen < 0 {
 				return ErrInvalidLengthKeyserverlocal
 			}
+			postIndex := iNdEx + msglen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -551,6 +583,9 @@ func (m *ReplicaState) Unmarshal(data []byte) error {
 			}
 			var v int
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowKeyserverlocal
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -568,6 +603,9 @@ func (m *ReplicaState) Unmarshal(data []byte) error {
 			}
 			var v int
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowKeyserverlocal
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -585,6 +623,9 @@ func (m *ReplicaState) Unmarshal(data []byte) error {
 			}
 			m.LatestTreeSnapshot = 0
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowKeyserverlocal
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -601,6 +642,9 @@ func (m *ReplicaState) Unmarshal(data []byte) error {
 			}
 			var v int
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowKeyserverlocal
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -613,15 +657,7 @@ func (m *ReplicaState) Unmarshal(data []byte) error {
 			}
 			m.LastEpochNeedsRatification = bool(v != 0)
 		default:
-			var sizeOfWire int
-			for {
-				sizeOfWire++
-				wire >>= 7
-				if wire == 0 {
-					break
-				}
-			}
-			iNdEx -= sizeOfWire
+			iNdEx = preIndex
 			skippy, err := skipKeyserverlocal(data[iNdEx:])
 			if err != nil {
 				return err
@@ -636,6 +672,9 @@ func (m *ReplicaState) Unmarshal(data []byte) error {
 		}
 	}
 
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
 	return nil
 }
 func skipKeyserverlocal(data []byte) (n int, err error) {
@@ -644,6 +683,9 @@ func skipKeyserverlocal(data []byte) (n int, err error) {
 	for iNdEx < l {
 		var wire uint64
 		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return 0, ErrIntOverflowKeyserverlocal
+			}
 			if iNdEx >= l {
 				return 0, io.ErrUnexpectedEOF
 			}
@@ -657,7 +699,10 @@ func skipKeyserverlocal(data []byte) (n int, err error) {
 		wireType := int(wire & 0x7)
 		switch wireType {
 		case 0:
-			for {
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return 0, ErrIntOverflowKeyserverlocal
+				}
 				if iNdEx >= l {
 					return 0, io.ErrUnexpectedEOF
 				}
@@ -673,6 +718,9 @@ func skipKeyserverlocal(data []byte) (n int, err error) {
 		case 2:
 			var length int
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return 0, ErrIntOverflowKeyserverlocal
+				}
 				if iNdEx >= l {
 					return 0, io.ErrUnexpectedEOF
 				}
@@ -693,6 +741,9 @@ func skipKeyserverlocal(data []byte) (n int, err error) {
 				var innerWire uint64
 				var start int = iNdEx
 				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return 0, ErrIntOverflowKeyserverlocal
+					}
 					if iNdEx >= l {
 						return 0, io.ErrUnexpectedEOF
 					}
@@ -728,4 +779,5 @@ func skipKeyserverlocal(data []byte) (n int, err error) {
 
 var (
 	ErrInvalidLengthKeyserverlocal = fmt.Errorf("proto: negative length found during unmarshaling")
+	ErrIntOverflowKeyserverlocal   = fmt.Errorf("proto: integer overflow")
 )

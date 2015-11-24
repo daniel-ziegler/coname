@@ -4,9 +4,11 @@
 
 package proto
 
-// discarding unused import gogoproto "gogoproto"
-
+import proto1 "github.com/andres-erbsen/protobuf/proto"
 import fmt "fmt"
+import math "math"
+
+// discarding unused import gogoproto "gogoproto"
 
 import strings "strings"
 import github_com_andres_erbsen_protobuf_proto "github.com/andres-erbsen/protobuf/proto"
@@ -15,6 +17,11 @@ import strconv "strconv"
 import reflect "reflect"
 
 import io "io"
+
+// Reference imports to suppress errors if they are not otherwise used.
+var _ = proto1.Marshal
+var _ = fmt.Errorf
+var _ = math.Inf
 
 // ReplicaConfig contains the local configuration of a single replica of a
 // keyserver. It is valid to have just one replica, but a larger odd number is
@@ -162,6 +169,7 @@ type KeyserverConfig struct {
 	// EmailProofAllowedDomains specifies the domains for which this keyserver
 	// accepts email address registrations.
 	EmailProofAllowedDomains []string `protobuf:"bytes,10,rep,name=email_proof_allowed_domains" json:"email_proof_allowed_domains,omitempty"`
+	InsecureSkipEmailProof   bool     `protobuf:"varint,11,opt,name=insecure_skip_email_proof,proto3" json:"insecure_skip_email_proof,omitempty"`
 }
 
 func (m *KeyserverConfig) Reset()      { *m = KeyserverConfig{} }
@@ -414,6 +422,9 @@ func (this *KeyserverConfig) VerboseEqual(that interface{}) error {
 			return fmt.Errorf("EmailProofAllowedDomains this[%v](%v) Not Equal that[%v](%v)", i, this.EmailProofAllowedDomains[i], i, that1.EmailProofAllowedDomains[i])
 		}
 	}
+	if this.InsecureSkipEmailProof != that1.InsecureSkipEmailProof {
+		return fmt.Errorf("InsecureSkipEmailProof this(%v) Not Equal that(%v)", this.InsecureSkipEmailProof, that1.InsecureSkipEmailProof)
+	}
 	return nil
 }
 func (this *KeyserverConfig) Equal(that interface{}) bool {
@@ -475,6 +486,9 @@ func (this *KeyserverConfig) Equal(that interface{}) bool {
 		if this.EmailProofAllowedDomains[i] != that1.EmailProofAllowedDomains[i] {
 			return false
 		}
+	}
+	if this.InsecureSkipEmailProof != that1.InsecureSkipEmailProof {
+		return false
 	}
 	return true
 }
@@ -554,50 +568,61 @@ func (this *ReplicaConfig) GoString() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings.Join([]string{`&proto.ReplicaConfig{` +
-		`KeyserverConfig:` + strings.Replace(this.KeyserverConfig.GoString(), `&`, ``, 1),
-		`ReplicaID:` + fmt.Sprintf("%#v", this.ReplicaID),
-		`SigningKeyID:` + fmt.Sprintf("%#v", this.SigningKeyID),
-		`PublicAddr:` + fmt.Sprintf("%#v", this.PublicAddr),
-		`PublicTLS:` + strings.Replace(this.PublicTLS.GoString(), `&`, ``, 1),
-		`VerifierAddr:` + fmt.Sprintf("%#v", this.VerifierAddr),
-		`VerifierTLS:` + strings.Replace(this.VerifierTLS.GoString(), `&`, ``, 1),
-		`HKPAddr:` + fmt.Sprintf("%#v", this.HKPAddr),
-		`HKPTLS:` + strings.Replace(this.HKPTLS.GoString(), `&`, ``, 1),
-		`RaftAddr:` + fmt.Sprintf("%#v", this.RaftAddr),
-		`RaftTLS:` + strings.Replace(this.RaftTLS.GoString(), `&`, ``, 1),
-		`LevelDBPath:` + fmt.Sprintf("%#v", this.LevelDBPath),
-		`RaftHeartbeat:` + strings.Replace(this.RaftHeartbeat.GoString(), `&`, ``, 1),
-		`LaggingVerifierScan:` + fmt.Sprintf("%#v", this.LaggingVerifierScan),
-		`ClientTimeout:` + strings.Replace(this.ClientTimeout.GoString(), `&`, ``, 1) + `}`}, ", ")
-	return s
+	s := make([]string, 0, 19)
+	s = append(s, "&proto.ReplicaConfig{")
+	s = append(s, "KeyserverConfig: "+strings.Replace(this.KeyserverConfig.GoString(), `&`, ``, 1)+",\n")
+	s = append(s, "ReplicaID: "+fmt.Sprintf("%#v", this.ReplicaID)+",\n")
+	s = append(s, "SigningKeyID: "+fmt.Sprintf("%#v", this.SigningKeyID)+",\n")
+	s = append(s, "PublicAddr: "+fmt.Sprintf("%#v", this.PublicAddr)+",\n")
+	s = append(s, "PublicTLS: "+strings.Replace(this.PublicTLS.GoString(), `&`, ``, 1)+",\n")
+	s = append(s, "VerifierAddr: "+fmt.Sprintf("%#v", this.VerifierAddr)+",\n")
+	s = append(s, "VerifierTLS: "+strings.Replace(this.VerifierTLS.GoString(), `&`, ``, 1)+",\n")
+	s = append(s, "HKPAddr: "+fmt.Sprintf("%#v", this.HKPAddr)+",\n")
+	s = append(s, "HKPTLS: "+strings.Replace(this.HKPTLS.GoString(), `&`, ``, 1)+",\n")
+	s = append(s, "RaftAddr: "+fmt.Sprintf("%#v", this.RaftAddr)+",\n")
+	s = append(s, "RaftTLS: "+strings.Replace(this.RaftTLS.GoString(), `&`, ``, 1)+",\n")
+	s = append(s, "LevelDBPath: "+fmt.Sprintf("%#v", this.LevelDBPath)+",\n")
+	s = append(s, "RaftHeartbeat: "+strings.Replace(this.RaftHeartbeat.GoString(), `&`, ``, 1)+",\n")
+	s = append(s, "LaggingVerifierScan: "+fmt.Sprintf("%#v", this.LaggingVerifierScan)+",\n")
+	s = append(s, "ClientTimeout: "+strings.Replace(this.ClientTimeout.GoString(), `&`, ``, 1)+",\n")
+	s = append(s, "}")
+	return strings.Join(s, "")
 }
 func (this *KeyserverConfig) GoString() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings.Join([]string{`&proto.KeyserverConfig{` +
-		`ServerID:` + fmt.Sprintf("%#v", this.ServerID),
-		`Realm:` + fmt.Sprintf("%#v", this.Realm),
-		`VRFKeyID:` + fmt.Sprintf("%#v", this.VRFKeyID),
-		`MinEpochInterval:` + strings.Replace(this.MinEpochInterval.GoString(), `&`, ``, 1),
-		`MaxEpochInterval:` + strings.Replace(this.MaxEpochInterval.GoString(), `&`, ``, 1),
-		`ProposalRetryInterval:` + strings.Replace(this.ProposalRetryInterval.GoString(), `&`, ``, 1),
-		`InitialReplicas:` + fmt.Sprintf("%#v", this.InitialReplicas),
-		`EmailProofToAddr:` + fmt.Sprintf("%#v", this.EmailProofToAddr),
-		`EmailProofSubjectPrefix:` + fmt.Sprintf("%#v", this.EmailProofSubjectPrefix),
-		`EmailProofAllowedDomains:` + fmt.Sprintf("%#v", this.EmailProofAllowedDomains) + `}`}, ", ")
-	return s
+	s := make([]string, 0, 15)
+	s = append(s, "&proto.KeyserverConfig{")
+	s = append(s, "ServerID: "+fmt.Sprintf("%#v", this.ServerID)+",\n")
+	s = append(s, "Realm: "+fmt.Sprintf("%#v", this.Realm)+",\n")
+	s = append(s, "VRFKeyID: "+fmt.Sprintf("%#v", this.VRFKeyID)+",\n")
+	s = append(s, "MinEpochInterval: "+strings.Replace(this.MinEpochInterval.GoString(), `&`, ``, 1)+",\n")
+	s = append(s, "MaxEpochInterval: "+strings.Replace(this.MaxEpochInterval.GoString(), `&`, ``, 1)+",\n")
+	s = append(s, "ProposalRetryInterval: "+strings.Replace(this.ProposalRetryInterval.GoString(), `&`, ``, 1)+",\n")
+	if this.InitialReplicas != nil {
+		s = append(s, "InitialReplicas: "+fmt.Sprintf("%#v", this.InitialReplicas)+",\n")
+	}
+	s = append(s, "EmailProofToAddr: "+fmt.Sprintf("%#v", this.EmailProofToAddr)+",\n")
+	s = append(s, "EmailProofSubjectPrefix: "+fmt.Sprintf("%#v", this.EmailProofSubjectPrefix)+",\n")
+	s = append(s, "EmailProofAllowedDomains: "+fmt.Sprintf("%#v", this.EmailProofAllowedDomains)+",\n")
+	s = append(s, "InsecureSkipEmailProof: "+fmt.Sprintf("%#v", this.InsecureSkipEmailProof)+",\n")
+	s = append(s, "}")
+	return strings.Join(s, "")
 }
 func (this *Replica) GoString() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings.Join([]string{`&proto.Replica{` +
-		`ID:` + fmt.Sprintf("%#v", this.ID),
-		`PublicKeys:` + fmt.Sprintf("%#v", this.PublicKeys),
-		`RaftAddr:` + fmt.Sprintf("%#v", this.RaftAddr) + `}`}, ", ")
-	return s
+	s := make([]string, 0, 7)
+	s = append(s, "&proto.Replica{")
+	s = append(s, "ID: "+fmt.Sprintf("%#v", this.ID)+",\n")
+	if this.PublicKeys != nil {
+		s = append(s, "PublicKeys: "+fmt.Sprintf("%#v", this.PublicKeys)+",\n")
+	}
+	s = append(s, "RaftAddr: "+fmt.Sprintf("%#v", this.RaftAddr)+",\n")
+	s = append(s, "}")
+	return strings.Join(s, "")
 }
 func valueToGoStringKeyserverconfig(v interface{}, typ string) string {
 	rv := reflect.ValueOf(v)
@@ -843,6 +868,16 @@ func (m *KeyserverConfig) MarshalTo(data []byte) (int, error) {
 			i += copy(data[i:], s)
 		}
 	}
+	if m.InsecureSkipEmailProof {
+		data[i] = 0x58
+		i++
+		if m.InsecureSkipEmailProof {
+			data[i] = 1
+		} else {
+			data[i] = 0
+		}
+		i++
+	}
 	return i, nil
 }
 
@@ -968,6 +1003,7 @@ func NewPopulatedKeyserverConfig(r randyKeyserverconfig, easy bool) *KeyserverCo
 	for i := 0; i < v12; i++ {
 		this.EmailProofAllowedDomains[i] = randStringKeyserverconfig(r)
 	}
+	this.InsecureSkipEmailProof = bool(bool(r.Intn(2) == 0))
 	if !easy && r.Intn(10) != 0 {
 	}
 	return this
@@ -1151,6 +1187,9 @@ func (m *KeyserverConfig) Size() (n int) {
 			n += 1 + l + sovKeyserverconfig(uint64(l))
 		}
 	}
+	if m.InsecureSkipEmailProof {
+		n += 2
+	}
 	return n
 }
 
@@ -1225,6 +1264,7 @@ func (this *KeyserverConfig) String() string {
 		`EmailProofToAddr:` + fmt.Sprintf("%v", this.EmailProofToAddr) + `,`,
 		`EmailProofSubjectPrefix:` + fmt.Sprintf("%v", this.EmailProofSubjectPrefix) + `,`,
 		`EmailProofAllowedDomains:` + fmt.Sprintf("%v", this.EmailProofAllowedDomains) + `,`,
+		`InsecureSkipEmailProof:` + fmt.Sprintf("%v", this.InsecureSkipEmailProof) + `,`,
 		`}`,
 	}, "")
 	return s
@@ -1253,8 +1293,12 @@ func (m *ReplicaConfig) Unmarshal(data []byte) error {
 	l := len(data)
 	iNdEx := 0
 	for iNdEx < l {
+		preIndex := iNdEx
 		var wire uint64
 		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowKeyserverconfig
+			}
 			if iNdEx >= l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1267,6 +1311,12 @@ func (m *ReplicaConfig) Unmarshal(data []byte) error {
 		}
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ReplicaConfig: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ReplicaConfig: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
@@ -1274,6 +1324,9 @@ func (m *ReplicaConfig) Unmarshal(data []byte) error {
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowKeyserverconfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -1284,10 +1337,10 @@ func (m *ReplicaConfig) Unmarshal(data []byte) error {
 					break
 				}
 			}
-			postIndex := iNdEx + msglen
 			if msglen < 0 {
 				return ErrInvalidLengthKeyserverconfig
 			}
+			postIndex := iNdEx + msglen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1301,6 +1354,9 @@ func (m *ReplicaConfig) Unmarshal(data []byte) error {
 			}
 			m.ReplicaID = 0
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowKeyserverconfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -1317,6 +1373,9 @@ func (m *ReplicaConfig) Unmarshal(data []byte) error {
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowKeyserverconfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -1327,7 +1386,11 @@ func (m *ReplicaConfig) Unmarshal(data []byte) error {
 					break
 				}
 			}
-			postIndex := iNdEx + int(stringLen)
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthKeyserverconfig
+			}
+			postIndex := iNdEx + intStringLen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1339,6 +1402,9 @@ func (m *ReplicaConfig) Unmarshal(data []byte) error {
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowKeyserverconfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -1349,7 +1415,11 @@ func (m *ReplicaConfig) Unmarshal(data []byte) error {
 					break
 				}
 			}
-			postIndex := iNdEx + int(stringLen)
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthKeyserverconfig
+			}
+			postIndex := iNdEx + intStringLen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1361,6 +1431,9 @@ func (m *ReplicaConfig) Unmarshal(data []byte) error {
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowKeyserverconfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -1371,10 +1444,10 @@ func (m *ReplicaConfig) Unmarshal(data []byte) error {
 					break
 				}
 			}
-			postIndex := iNdEx + msglen
 			if msglen < 0 {
 				return ErrInvalidLengthKeyserverconfig
 			}
+			postIndex := iNdEx + msglen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1388,6 +1461,9 @@ func (m *ReplicaConfig) Unmarshal(data []byte) error {
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowKeyserverconfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -1398,7 +1474,11 @@ func (m *ReplicaConfig) Unmarshal(data []byte) error {
 					break
 				}
 			}
-			postIndex := iNdEx + int(stringLen)
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthKeyserverconfig
+			}
+			postIndex := iNdEx + intStringLen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1410,6 +1490,9 @@ func (m *ReplicaConfig) Unmarshal(data []byte) error {
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowKeyserverconfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -1420,10 +1503,10 @@ func (m *ReplicaConfig) Unmarshal(data []byte) error {
 					break
 				}
 			}
-			postIndex := iNdEx + msglen
 			if msglen < 0 {
 				return ErrInvalidLengthKeyserverconfig
 			}
+			postIndex := iNdEx + msglen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1437,6 +1520,9 @@ func (m *ReplicaConfig) Unmarshal(data []byte) error {
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowKeyserverconfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -1447,7 +1533,11 @@ func (m *ReplicaConfig) Unmarshal(data []byte) error {
 					break
 				}
 			}
-			postIndex := iNdEx + int(stringLen)
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthKeyserverconfig
+			}
+			postIndex := iNdEx + intStringLen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1459,6 +1549,9 @@ func (m *ReplicaConfig) Unmarshal(data []byte) error {
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowKeyserverconfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -1469,10 +1562,10 @@ func (m *ReplicaConfig) Unmarshal(data []byte) error {
 					break
 				}
 			}
-			postIndex := iNdEx + msglen
 			if msglen < 0 {
 				return ErrInvalidLengthKeyserverconfig
 			}
+			postIndex := iNdEx + msglen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1486,6 +1579,9 @@ func (m *ReplicaConfig) Unmarshal(data []byte) error {
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowKeyserverconfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -1496,7 +1592,11 @@ func (m *ReplicaConfig) Unmarshal(data []byte) error {
 					break
 				}
 			}
-			postIndex := iNdEx + int(stringLen)
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthKeyserverconfig
+			}
+			postIndex := iNdEx + intStringLen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1508,6 +1608,9 @@ func (m *ReplicaConfig) Unmarshal(data []byte) error {
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowKeyserverconfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -1518,10 +1621,10 @@ func (m *ReplicaConfig) Unmarshal(data []byte) error {
 					break
 				}
 			}
-			postIndex := iNdEx + msglen
 			if msglen < 0 {
 				return ErrInvalidLengthKeyserverconfig
 			}
+			postIndex := iNdEx + msglen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1535,6 +1638,9 @@ func (m *ReplicaConfig) Unmarshal(data []byte) error {
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowKeyserverconfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -1545,7 +1651,11 @@ func (m *ReplicaConfig) Unmarshal(data []byte) error {
 					break
 				}
 			}
-			postIndex := iNdEx + int(stringLen)
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthKeyserverconfig
+			}
+			postIndex := iNdEx + intStringLen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1557,6 +1667,9 @@ func (m *ReplicaConfig) Unmarshal(data []byte) error {
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowKeyserverconfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -1567,10 +1680,10 @@ func (m *ReplicaConfig) Unmarshal(data []byte) error {
 					break
 				}
 			}
-			postIndex := iNdEx + msglen
 			if msglen < 0 {
 				return ErrInvalidLengthKeyserverconfig
 			}
+			postIndex := iNdEx + msglen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1584,6 +1697,9 @@ func (m *ReplicaConfig) Unmarshal(data []byte) error {
 			}
 			m.LaggingVerifierScan = 0
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowKeyserverconfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -1600,6 +1716,9 @@ func (m *ReplicaConfig) Unmarshal(data []byte) error {
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowKeyserverconfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -1610,10 +1729,10 @@ func (m *ReplicaConfig) Unmarshal(data []byte) error {
 					break
 				}
 			}
-			postIndex := iNdEx + msglen
 			if msglen < 0 {
 				return ErrInvalidLengthKeyserverconfig
 			}
+			postIndex := iNdEx + msglen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1622,15 +1741,7 @@ func (m *ReplicaConfig) Unmarshal(data []byte) error {
 			}
 			iNdEx = postIndex
 		default:
-			var sizeOfWire int
-			for {
-				sizeOfWire++
-				wire >>= 7
-				if wire == 0 {
-					break
-				}
-			}
-			iNdEx -= sizeOfWire
+			iNdEx = preIndex
 			skippy, err := skipKeyserverconfig(data[iNdEx:])
 			if err != nil {
 				return err
@@ -1645,14 +1756,21 @@ func (m *ReplicaConfig) Unmarshal(data []byte) error {
 		}
 	}
 
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
 	return nil
 }
 func (m *KeyserverConfig) Unmarshal(data []byte) error {
 	l := len(data)
 	iNdEx := 0
 	for iNdEx < l {
+		preIndex := iNdEx
 		var wire uint64
 		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowKeyserverconfig
+			}
 			if iNdEx >= l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1665,6 +1783,12 @@ func (m *KeyserverConfig) Unmarshal(data []byte) error {
 		}
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: KeyserverConfig: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: KeyserverConfig: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
 		switch fieldNum {
 		case 1:
 			if wireType != 0 {
@@ -1672,6 +1796,9 @@ func (m *KeyserverConfig) Unmarshal(data []byte) error {
 			}
 			m.ServerID = 0
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowKeyserverconfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -1688,6 +1815,9 @@ func (m *KeyserverConfig) Unmarshal(data []byte) error {
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowKeyserverconfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -1698,7 +1828,11 @@ func (m *KeyserverConfig) Unmarshal(data []byte) error {
 					break
 				}
 			}
-			postIndex := iNdEx + int(stringLen)
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthKeyserverconfig
+			}
+			postIndex := iNdEx + intStringLen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1710,6 +1844,9 @@ func (m *KeyserverConfig) Unmarshal(data []byte) error {
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowKeyserverconfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -1720,7 +1857,11 @@ func (m *KeyserverConfig) Unmarshal(data []byte) error {
 					break
 				}
 			}
-			postIndex := iNdEx + int(stringLen)
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthKeyserverconfig
+			}
+			postIndex := iNdEx + intStringLen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1732,6 +1873,9 @@ func (m *KeyserverConfig) Unmarshal(data []byte) error {
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowKeyserverconfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -1742,10 +1886,10 @@ func (m *KeyserverConfig) Unmarshal(data []byte) error {
 					break
 				}
 			}
-			postIndex := iNdEx + msglen
 			if msglen < 0 {
 				return ErrInvalidLengthKeyserverconfig
 			}
+			postIndex := iNdEx + msglen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1759,6 +1903,9 @@ func (m *KeyserverConfig) Unmarshal(data []byte) error {
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowKeyserverconfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -1769,10 +1916,10 @@ func (m *KeyserverConfig) Unmarshal(data []byte) error {
 					break
 				}
 			}
-			postIndex := iNdEx + msglen
 			if msglen < 0 {
 				return ErrInvalidLengthKeyserverconfig
 			}
+			postIndex := iNdEx + msglen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1786,6 +1933,9 @@ func (m *KeyserverConfig) Unmarshal(data []byte) error {
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowKeyserverconfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -1796,10 +1946,10 @@ func (m *KeyserverConfig) Unmarshal(data []byte) error {
 					break
 				}
 			}
-			postIndex := iNdEx + msglen
 			if msglen < 0 {
 				return ErrInvalidLengthKeyserverconfig
 			}
+			postIndex := iNdEx + msglen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1813,6 +1963,9 @@ func (m *KeyserverConfig) Unmarshal(data []byte) error {
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowKeyserverconfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -1823,10 +1976,10 @@ func (m *KeyserverConfig) Unmarshal(data []byte) error {
 					break
 				}
 			}
-			postIndex := iNdEx + msglen
 			if msglen < 0 {
 				return ErrInvalidLengthKeyserverconfig
 			}
+			postIndex := iNdEx + msglen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1841,6 +1994,9 @@ func (m *KeyserverConfig) Unmarshal(data []byte) error {
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowKeyserverconfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -1851,7 +2007,11 @@ func (m *KeyserverConfig) Unmarshal(data []byte) error {
 					break
 				}
 			}
-			postIndex := iNdEx + int(stringLen)
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthKeyserverconfig
+			}
+			postIndex := iNdEx + intStringLen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1863,6 +2023,9 @@ func (m *KeyserverConfig) Unmarshal(data []byte) error {
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowKeyserverconfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -1873,7 +2036,11 @@ func (m *KeyserverConfig) Unmarshal(data []byte) error {
 					break
 				}
 			}
-			postIndex := iNdEx + int(stringLen)
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthKeyserverconfig
+			}
+			postIndex := iNdEx + intStringLen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1885,6 +2052,9 @@ func (m *KeyserverConfig) Unmarshal(data []byte) error {
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowKeyserverconfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -1895,22 +2065,38 @@ func (m *KeyserverConfig) Unmarshal(data []byte) error {
 					break
 				}
 			}
-			postIndex := iNdEx + int(stringLen)
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthKeyserverconfig
+			}
+			postIndex := iNdEx + intStringLen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
 			m.EmailProofAllowedDomains = append(m.EmailProofAllowedDomains, string(data[iNdEx:postIndex]))
 			iNdEx = postIndex
-		default:
-			var sizeOfWire int
-			for {
-				sizeOfWire++
-				wire >>= 7
-				if wire == 0 {
+		case 11:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field InsecureSkipEmailProof", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowKeyserverconfig
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := data[iNdEx]
+				iNdEx++
+				v |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
 					break
 				}
 			}
-			iNdEx -= sizeOfWire
+			m.InsecureSkipEmailProof = bool(v != 0)
+		default:
+			iNdEx = preIndex
 			skippy, err := skipKeyserverconfig(data[iNdEx:])
 			if err != nil {
 				return err
@@ -1925,14 +2111,21 @@ func (m *KeyserverConfig) Unmarshal(data []byte) error {
 		}
 	}
 
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
 	return nil
 }
 func (m *Replica) Unmarshal(data []byte) error {
 	l := len(data)
 	iNdEx := 0
 	for iNdEx < l {
+		preIndex := iNdEx
 		var wire uint64
 		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowKeyserverconfig
+			}
 			if iNdEx >= l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1945,6 +2138,12 @@ func (m *Replica) Unmarshal(data []byte) error {
 		}
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: Replica: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: Replica: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
 		switch fieldNum {
 		case 1:
 			if wireType != 0 {
@@ -1952,6 +2151,9 @@ func (m *Replica) Unmarshal(data []byte) error {
 			}
 			m.ID = 0
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowKeyserverconfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -1968,6 +2170,9 @@ func (m *Replica) Unmarshal(data []byte) error {
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowKeyserverconfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -1978,10 +2183,10 @@ func (m *Replica) Unmarshal(data []byte) error {
 					break
 				}
 			}
-			postIndex := iNdEx + msglen
 			if msglen < 0 {
 				return ErrInvalidLengthKeyserverconfig
 			}
+			postIndex := iNdEx + msglen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1996,6 +2201,9 @@ func (m *Replica) Unmarshal(data []byte) error {
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowKeyserverconfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -2006,22 +2214,18 @@ func (m *Replica) Unmarshal(data []byte) error {
 					break
 				}
 			}
-			postIndex := iNdEx + int(stringLen)
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthKeyserverconfig
+			}
+			postIndex := iNdEx + intStringLen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
 			m.RaftAddr = string(data[iNdEx:postIndex])
 			iNdEx = postIndex
 		default:
-			var sizeOfWire int
-			for {
-				sizeOfWire++
-				wire >>= 7
-				if wire == 0 {
-					break
-				}
-			}
-			iNdEx -= sizeOfWire
+			iNdEx = preIndex
 			skippy, err := skipKeyserverconfig(data[iNdEx:])
 			if err != nil {
 				return err
@@ -2036,6 +2240,9 @@ func (m *Replica) Unmarshal(data []byte) error {
 		}
 	}
 
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
 	return nil
 }
 func skipKeyserverconfig(data []byte) (n int, err error) {
@@ -2044,6 +2251,9 @@ func skipKeyserverconfig(data []byte) (n int, err error) {
 	for iNdEx < l {
 		var wire uint64
 		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return 0, ErrIntOverflowKeyserverconfig
+			}
 			if iNdEx >= l {
 				return 0, io.ErrUnexpectedEOF
 			}
@@ -2057,7 +2267,10 @@ func skipKeyserverconfig(data []byte) (n int, err error) {
 		wireType := int(wire & 0x7)
 		switch wireType {
 		case 0:
-			for {
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return 0, ErrIntOverflowKeyserverconfig
+				}
 				if iNdEx >= l {
 					return 0, io.ErrUnexpectedEOF
 				}
@@ -2073,6 +2286,9 @@ func skipKeyserverconfig(data []byte) (n int, err error) {
 		case 2:
 			var length int
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return 0, ErrIntOverflowKeyserverconfig
+				}
 				if iNdEx >= l {
 					return 0, io.ErrUnexpectedEOF
 				}
@@ -2093,6 +2309,9 @@ func skipKeyserverconfig(data []byte) (n int, err error) {
 				var innerWire uint64
 				var start int = iNdEx
 				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return 0, ErrIntOverflowKeyserverconfig
+					}
 					if iNdEx >= l {
 						return 0, io.ErrUnexpectedEOF
 					}
@@ -2128,4 +2347,5 @@ func skipKeyserverconfig(data []byte) (n int, err error) {
 
 var (
 	ErrInvalidLengthKeyserverconfig = fmt.Errorf("proto: negative length found during unmarshaling")
+	ErrIntOverflowKeyserverconfig   = fmt.Errorf("proto: integer overflow")
 )

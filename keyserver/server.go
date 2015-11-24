@@ -22,6 +22,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"log"
+	"math"
 	"net"
 	"sync"
 	"time"
@@ -32,6 +33,7 @@ import (
 	"github.com/agl/ed25519"
 	"github.com/andres-erbsen/clock"
 	"github.com/yahoo/coname"
+	"github.com/yahoo/coname/concurrent"
 	"github.com/yahoo/coname/hkpfront"
 	"github.com/yahoo/coname/keyserver/kv"
 	"github.com/yahoo/coname/keyserver/merkletree"
@@ -92,9 +94,9 @@ type Keyserver struct {
 
 	merkletree *merkletree.MerkleTree
 
-	vmb                *VerifierBroadcast
-	wr                 *WaitingRoom
-	signatureBroadcast *Broadcaster
+	sb                 *concurrent.SequenceBroadcast
+	wr                 *concurrent.OneShotPubSub
+	signatureBroadcast *concurrent.PublishSubscribe
 
 	stopOnce sync.Once
 	stop     chan struct{}
@@ -145,8 +147,8 @@ func Open(cfg *proto.ReplicaConfig, db kv.DB, log replication.LogReplicator, ini
 		log:                log,
 		stop:               make(chan struct{}),
 		stopped:            make(chan struct{}),
-		wr:                 NewWaitingRoom(),
-		signatureBroadcast: NewBroadcaster(),
+		wr:                 concurrent.NewOneShotPubSub(),
+		signatureBroadcast: concurrent.NewPublishSubscribe(),
 
 		leaderHint: true,
 
@@ -157,6 +159,11 @@ func Open(cfg *proto.ReplicaConfig, db kv.DB, log replication.LogReplicator, ini
 	}
 	for _, d := range cfg.EmailProofAllowedDomains {
 		ks.emailProofAllowedDomains[d] = struct{}{}
+	}
+
+	// TODO remove this before production
+	if cfg.KeyserverConfig.InsecureSkipEmailProof {
+		ks.insecureSkipEmailProof = true
 	}
 
 	switch replicaStateBytes, err := db.Get(tableReplicaState); err {
@@ -173,7 +180,7 @@ func Open(cfg *proto.ReplicaConfig, db kv.DB, log replication.LogReplicator, ini
 	ks.resetEpochTimers(ks.rs.LastEpochDelimiter.Timestamp.Time())
 	ks.updateEpochProposer()
 
-	ks.vmb = NewVerifierBroadcast(ks.rs.NextIndexVerifier)
+	ks.sb = concurrent.NewSequenceBroadcast(ks.rs.NextIndexVerifier)
 
 	ok := false
 	if cfg.PublicAddr != "" {
@@ -274,7 +281,11 @@ func (ks *Keyserver) run() {
 		select {
 		case <-ks.stop:
 			return
-		case stepBytes := <-ks.log.WaitCommitted():
+		case stepEntry := <-ks.log.WaitCommitted():
+			if stepEntry.ConfChange != nil {
+				ks.log.ApplyConfChange(stepEntry.ConfChange)
+			}
+			stepBytes := stepEntry.Data
 			if stepBytes == nil {
 				continue // allow logs to skip slots for indexing purposes
 			}
@@ -310,28 +321,51 @@ func (ks *Keyserver) run() {
 func (ks *Keyserver) step(step *proto.KeyserverStep, rs *proto.ReplicaState, wb kv.Batch) (deferredIO func()) {
 	// ks: &const
 	// step, rs, wb: &mut
-	switch {
-	case step.Update != nil:
-		index := step.Update.Update.NewEntry.Index
-		if err := ks.verifyUpdateDeterministic(step.Update); err != nil {
+	switch step.Type.(type) {
+	case *proto.KeyserverStep_Update:
+		index := step.GetUpdate().Update.NewEntry.Index
+		prevUpdate, err := ks.getUpdate(index, math.MaxUint64)
+		if err != nil {
+			log.Printf("getUpdate: %s", err)
+			ks.wr.Notify(step.UID, updateOutput{Error: fmt.Errorf("internal error")})
+			return
+		}
+		if err := ks.verifyUpdateDeterministic(prevUpdate, step.GetUpdate()); err != nil {
 			ks.wr.Notify(step.UID, updateOutput{Error: err})
 			return
 		}
-		var entryHash [32]byte
-		sha3.ShakeSum256(entryHash[:], step.Update.Update.NewEntry.Encoding)
 		latestTree := ks.merkletree.GetSnapshot(rs.LatestTreeSnapshot)
+
+		// sanity check: compare previous version in Merkle tree vs in updates table
+		prevEntryHashTree, _, err := latestTree.Lookup(index)
+		if err != nil {
+			ks.wr.Notify(step.UID, updateOutput{Error: fmt.Errorf("internal error")})
+			return
+		}
+		var prevEntryHash []byte
+		if prevUpdate != nil {
+			prevEntryHash = make([]byte, 32)
+			sha3.ShakeSum256(prevEntryHash, prevUpdate.Update.NewEntry.Encoding)
+		}
+		if !bytes.Equal(prevEntryHashTree, prevEntryHash) {
+			log.Fatalf("ERROR: merkle tree and DB inconsistent for index %x: %x vs %x", index, prevEntryHashTree, prevEntryHash)
+		}
+
+		var entryHash [32]byte
+		sha3.ShakeSum256(entryHash[:], step.GetUpdate().Update.NewEntry.Encoding)
 		newTree, err := latestTree.BeginModification()
 		if err != nil {
 			ks.wr.Notify(step.UID, updateOutput{Error: fmt.Errorf("internal error")})
 			return
 		}
 		if err := newTree.Set(index, entryHash[:]); err != nil {
+			log.Printf("setting index '%x' gave error: %s", index, err)
 			ks.wr.Notify(step.UID, updateOutput{Error: fmt.Errorf("internal error")})
 			return
 		}
 		rs.LatestTreeSnapshot = newTree.Flush(wb).Nr
 		epochNr := rs.LastEpochDelimiter.EpochNumber + 1
-		wb.Put(tableUpdateRequests(index, epochNr), proto.MustMarshal(step.Update))
+		wb.Put(tableUpdateRequests(index, epochNr), proto.MustMarshal(step.GetUpdate()))
 		ks.wr.Notify(step.UID, updateOutput{Epoch: epochNr})
 
 		rs.PendingUpdates = true
@@ -340,17 +374,18 @@ func (ks *Keyserver) step(step *proto.KeyserverStep, rs *proto.ReplicaState, wb 
 		if rs.LastEpochNeedsRatification {
 			// We need to wait for the last epoch to appear in the verifier log before
 			// inserting this update.
-			wb.Put(tableUpdatesPendingRatification(rs.NextIndexLog), proto.MustMarshal(step.Update.Update))
+			wb.Put(tableUpdatesPendingRatification(rs.NextIndexLog), proto.MustMarshal(step.GetUpdate().Update))
 		} else {
 			// We can deliver the update to verifiers right away.
-			return ks.verifierLogAppend(&proto.VerifierStep{Update: step.Update.Update}, rs, wb)
+			return ks.verifierLogAppend(&proto.VerifierStep{Type:&proto.VerifierStep_Update{Update: step.GetUpdate().Update}}, rs, wb)
 		}
 
-	case step.EpochDelimiter != nil:
-		if step.EpochDelimiter.EpochNumber <= rs.LastEpochDelimiter.EpochNumber {
+	case *proto.KeyserverStep_EpochDelimiter:
+		if step.GetEpochDelimiter().EpochNumber <= rs.LastEpochDelimiter.EpochNumber {
 			return // a duplicate of this step has already been handled
 		}
-		rs.LastEpochDelimiter = *step.EpochDelimiter
+		rs.LastEpochDelimiter = *step.GetEpochDelimiter()
+		log.Printf("epoch %d", step.GetEpochDelimiter().EpochNumber)
 
 		rs.PendingUpdates = false
 		ks.resetEpochTimers(rs.LastEpochDelimiter.Timestamp.Time())
@@ -369,7 +404,7 @@ func (ks *Keyserver) step(step *proto.KeyserverStep, rs *proto.ReplicaState, wb 
 
 		snapshotNumberBytes := make([]byte, 8)
 		binary.BigEndian.PutUint64(snapshotNumberBytes, rs.LatestTreeSnapshot)
-		wb.Put(tableMerkleTreeSnapshot(step.EpochDelimiter.EpochNumber), snapshotNumberBytes)
+		wb.Put(tableMerkleTreeSnapshot(step.GetEpochDelimiter().EpochNumber), snapshotNumberBytes)
 
 		latestTree := ks.merkletree.GetSnapshot(rs.LatestTreeSnapshot)
 		rootHash, err := latestTree.GetRootHash()
@@ -381,10 +416,10 @@ func (ks *Keyserver) step(step *proto.KeyserverStep, rs *proto.ReplicaState, wb 
 				RootHash:            rootHash,
 				PreviousSummaryHash: rs.PreviousSummaryHash,
 				Realm:               ks.realm,
-				Epoch:               step.EpochDelimiter.EpochNumber,
-				IssueTime:           step.EpochDelimiter.Timestamp,
+				Epoch:               step.GetEpochDelimiter().EpochNumber,
+				IssueTime:           step.GetEpochDelimiter().Timestamp,
 			}, nil},
-			Timestamp: step.EpochDelimiter.Timestamp,
+			Timestamp: step.GetEpochDelimiter().Timestamp,
 		}, nil}
 		teh.Head.UpdateEncoding()
 		teh.UpdateEncoding()
@@ -393,10 +428,10 @@ func (ks *Keyserver) step(step *proto.KeyserverStep, rs *proto.ReplicaState, wb 
 		}
 		sha3.ShakeSum256(rs.PreviousSummaryHash[:], teh.Head.Encoding)
 
-		wb.Put(tableEpochHeads(step.EpochDelimiter.EpochNumber), proto.MustMarshal(teh))
+		wb.Put(tableEpochHeads(step.GetEpochDelimiter().EpochNumber), proto.MustMarshal(teh))
 
-	case step.ReplicaSigned != nil:
-		newSEH := step.ReplicaSigned
+	case *proto.KeyserverStep_ReplicaSigned:
+		newSEH := step.GetReplicaSigned()
 		epochNr := newSEH.Head.Head.Epoch
 		// get epoch head
 		tehBytes, err := ks.db.Get(tableEpochHeads(epochNr))
@@ -476,7 +511,7 @@ func (ks *Keyserver) step(step *proto.KeyserverStep, rs *proto.ReplicaState, wb 
 			Signatures: allSignatures,
 		}
 		oldDeferredIO := deferredIO
-		deferredSendEpoch := ks.verifierLogAppend(&proto.VerifierStep{Epoch: allSignaturesSEH}, rs, wb)
+		deferredSendEpoch := ks.verifierLogAppend(&proto.VerifierStep{&proto.VerifierStep_Epoch{Epoch: allSignaturesSEH}}, rs, wb)
 		deferredSendUpdates := []func(){}
 		iter := ks.db.NewIterator(kv.BytesPrefix([]byte{tableUpdatesPendingRatificationPrefix}))
 		defer iter.Release()
@@ -486,7 +521,7 @@ func (ks *Keyserver) step(step *proto.KeyserverStep, rs *proto.ReplicaState, wb 
 			if err != nil {
 				log.Panicf("invalid pending update %x: %s", iter.Value(), err)
 			}
-			deferredSendUpdates = append(deferredSendUpdates, ks.verifierLogAppend(&proto.VerifierStep{Update: update}, rs, wb))
+			deferredSendUpdates = append(deferredSendUpdates, ks.verifierLogAppend(&proto.VerifierStep{&proto.VerifierStep_Update{Update: update}}, rs, wb))
 			wb.Delete(iter.Key())
 		}
 		deferredIO = func() {
@@ -499,8 +534,8 @@ func (ks *Keyserver) step(step *proto.KeyserverStep, rs *proto.ReplicaState, wb 
 			}
 		}
 
-	case step.VerifierSigned != nil:
-		rNew := step.VerifierSigned
+	case *proto.KeyserverStep_VerifierSigned:
+		rNew := step.GetVerifierSigned()
 		for id := range rNew.Signatures {
 			// Note: The signature *must* have been authenticated before being inserted
 			// into the log, or else verifiers could just trample over everyone else's
@@ -523,14 +558,14 @@ type Proposer struct {
 	log      replication.LogReplicator
 	clk      clock.Clock
 	delay    time.Duration
-	proposal []byte
+	proposal replication.LogEntry
 
 	stop     chan struct{}
 	stopped  chan struct{}
 	stopOnce sync.Once
 }
 
-func StartProposer(log replication.LogReplicator, clk clock.Clock, initialDelay time.Duration, proposal []byte) *Proposer {
+func StartProposer(log replication.LogReplicator, clk clock.Clock, initialDelay time.Duration, proposal replication.LogEntry) *Proposer {
 	p := &Proposer{
 		log:      log,
 		clk:      clk,
@@ -559,7 +594,17 @@ func (p *Proposer) run() {
 	for {
 		select {
 		case <-timer.C:
-			p.log.Propose(context.Background(), p.proposal)
+			ctx, cancel := context.WithCancel(context.Background())
+			done := make(chan struct{})
+			go func() {
+				select {
+				case <-done:
+				case <-p.stop:
+					cancel()
+				}
+			}()
+			p.log.Propose(ctx, p.proposal)
+			close(done)
 			timer.Reset(p.delay)
 			p.delay = p.delay * 2
 		case <-p.stop:
@@ -586,10 +631,15 @@ func (ks *Keyserver) updateEpochProposer() {
 	switch want {
 	case true:
 		ks.epochProposer = StartProposer(ks.log, ks.clk, ks.retryProposalInterval,
-			proto.MustMarshal(&proto.KeyserverStep{EpochDelimiter: &proto.EpochDelimiter{
-				EpochNumber: ks.rs.LastEpochDelimiter.EpochNumber + 1,
-				Timestamp:   proto.Time(ks.clk.Now()),
-			}}))
+			replication.LogEntry{
+				Data: proto.MustMarshal(&proto.KeyserverStep{Type: &proto.KeyserverStep_EpochDelimiter{EpochDelimiter: &proto.EpochDelimiter{
+					EpochNumber: ks.rs.LastEpochDelimiter.EpochNumber + 1,
+					Timestamp:   proto.Time(ks.clk.Now()),
+				}}}),
+				ConfChange: &replication.ConfChange{
+					Operation: replication.ConfChangeNOP,
+				},
+			})
 	case false:
 		ks.epochProposer.Stop()
 		ks.epochProposer = nil
@@ -619,7 +669,7 @@ func (ks *Keyserver) updateSignatureProposer() {
 			Signatures: map[uint64][]byte{ks.replicaID: ed25519.Sign(ks.sehKey, tehBytes)[:]},
 		}
 		ks.signatureProposer = StartProposer(ks.log, ks.clk, ks.retryProposalInterval,
-			proto.MustMarshal(&proto.KeyserverStep{ReplicaSigned: seh}))
+			replication.LogEntry{Data: proto.MustMarshal(&proto.KeyserverStep{Type: &proto.KeyserverStep_ReplicaSigned{ReplicaSigned: seh}})})
 	case false:
 		ks.signatureProposer.Stop()
 		ks.signatureProposer = nil
@@ -627,10 +677,8 @@ func (ks *Keyserver) updateSignatureProposer() {
 }
 
 func (ks *Keyserver) resetEpochTimers(t time.Time) {
-	t2 := t.Add(ks.minEpochInterval)
-	d := t2.Sub(ks.clk.Now())
-	ks.minEpochIntervalTimer.Reset(d)
-	ks.maxEpochIntervalTimer.Reset(d)
+	ks.minEpochIntervalTimer.Reset(t.Add(ks.minEpochInterval).Sub(ks.clk.Now()))
+	ks.maxEpochIntervalTimer.Reset(t.Add(ks.maxEpochInterval).Sub(ks.clk.Now()))
 	ks.minEpochIntervalPassed = false
 	ks.maxEpochIntervalPassed = false
 	// caller MUST call updateEpochProposer

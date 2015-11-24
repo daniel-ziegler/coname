@@ -4,9 +4,12 @@
 
 package proto
 
+import proto1 "github.com/andres-erbsen/protobuf/proto"
+import fmt "fmt"
+import math "math"
+
 // discarding unused import gogoproto "gogoproto"
 
-import fmt "fmt"
 import bytes "bytes"
 
 import strings "strings"
@@ -16,6 +19,11 @@ import strconv "strconv"
 import reflect "reflect"
 
 import io "io"
+
+// Reference imports to suppress errors if they are not otherwise used.
+var _ = proto1.Marshal
+var _ = fmt.Errorf
+var _ = math.Inf
 
 type VerifierConfig struct {
 	ID                   uint64              `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -134,15 +142,19 @@ func (this *VerifierConfig) GoString() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings.Join([]string{`&proto.VerifierConfig{` +
-		`ID:` + fmt.Sprintf("%#v", this.ID),
-		`SigningKeyID:` + fmt.Sprintf("%#v", this.SigningKeyID),
-		`Realm:` + fmt.Sprintf("%#v", this.Realm),
-		`TLS:` + fmt.Sprintf("%#v", this.TLS),
-		`KeyserverAddr:` + fmt.Sprintf("%#v", this.KeyserverAddr),
-		`InitialKeyserverAuth:` + strings.Replace(this.InitialKeyserverAuth.GoString(), `&`, ``, 1),
-		`TreeNonce:` + fmt.Sprintf("%#v", this.TreeNonce) + `}`}, ", ")
-	return s
+	s := make([]string, 0, 11)
+	s = append(s, "&proto.VerifierConfig{")
+	s = append(s, "ID: "+fmt.Sprintf("%#v", this.ID)+",\n")
+	s = append(s, "SigningKeyID: "+fmt.Sprintf("%#v", this.SigningKeyID)+",\n")
+	s = append(s, "Realm: "+fmt.Sprintf("%#v", this.Realm)+",\n")
+	if this.TLS != nil {
+		s = append(s, "TLS: "+fmt.Sprintf("%#v", this.TLS)+",\n")
+	}
+	s = append(s, "KeyserverAddr: "+fmt.Sprintf("%#v", this.KeyserverAddr)+",\n")
+	s = append(s, "InitialKeyserverAuth: "+strings.Replace(this.InitialKeyserverAuth.GoString(), `&`, ``, 1)+",\n")
+	s = append(s, "TreeNonce: "+fmt.Sprintf("%#v", this.TreeNonce)+",\n")
+	s = append(s, "}")
+	return strings.Join(s, "")
 }
 func valueToGoStringVerifierconfig(v interface{}, typ string) string {
 	rv := reflect.ValueOf(v)
@@ -430,8 +442,12 @@ func (m *VerifierConfig) Unmarshal(data []byte) error {
 	l := len(data)
 	iNdEx := 0
 	for iNdEx < l {
+		preIndex := iNdEx
 		var wire uint64
 		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowVerifierconfig
+			}
 			if iNdEx >= l {
 				return io.ErrUnexpectedEOF
 			}
@@ -444,6 +460,12 @@ func (m *VerifierConfig) Unmarshal(data []byte) error {
 		}
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: VerifierConfig: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: VerifierConfig: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
 		switch fieldNum {
 		case 1:
 			if wireType != 0 {
@@ -451,6 +473,9 @@ func (m *VerifierConfig) Unmarshal(data []byte) error {
 			}
 			m.ID = 0
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowVerifierconfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -467,6 +492,9 @@ func (m *VerifierConfig) Unmarshal(data []byte) error {
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowVerifierconfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -477,7 +505,11 @@ func (m *VerifierConfig) Unmarshal(data []byte) error {
 					break
 				}
 			}
-			postIndex := iNdEx + int(stringLen)
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthVerifierconfig
+			}
+			postIndex := iNdEx + intStringLen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -489,6 +521,9 @@ func (m *VerifierConfig) Unmarshal(data []byte) error {
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowVerifierconfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -499,7 +534,11 @@ func (m *VerifierConfig) Unmarshal(data []byte) error {
 					break
 				}
 			}
-			postIndex := iNdEx + int(stringLen)
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthVerifierconfig
+			}
+			postIndex := iNdEx + intStringLen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -511,6 +550,9 @@ func (m *VerifierConfig) Unmarshal(data []byte) error {
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowVerifierconfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -521,10 +563,10 @@ func (m *VerifierConfig) Unmarshal(data []byte) error {
 					break
 				}
 			}
-			postIndex := iNdEx + msglen
 			if msglen < 0 {
 				return ErrInvalidLengthVerifierconfig
 			}
+			postIndex := iNdEx + msglen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -541,6 +583,9 @@ func (m *VerifierConfig) Unmarshal(data []byte) error {
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowVerifierconfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -551,7 +596,11 @@ func (m *VerifierConfig) Unmarshal(data []byte) error {
 					break
 				}
 			}
-			postIndex := iNdEx + int(stringLen)
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthVerifierconfig
+			}
+			postIndex := iNdEx + intStringLen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -563,6 +612,9 @@ func (m *VerifierConfig) Unmarshal(data []byte) error {
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowVerifierconfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -573,10 +625,10 @@ func (m *VerifierConfig) Unmarshal(data []byte) error {
 					break
 				}
 			}
-			postIndex := iNdEx + msglen
 			if msglen < 0 {
 				return ErrInvalidLengthVerifierconfig
 			}
+			postIndex := iNdEx + msglen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -590,6 +642,9 @@ func (m *VerifierConfig) Unmarshal(data []byte) error {
 			}
 			var byteLen int
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowVerifierconfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -610,15 +665,7 @@ func (m *VerifierConfig) Unmarshal(data []byte) error {
 			m.TreeNonce = append([]byte{}, data[iNdEx:postIndex]...)
 			iNdEx = postIndex
 		default:
-			var sizeOfWire int
-			for {
-				sizeOfWire++
-				wire >>= 7
-				if wire == 0 {
-					break
-				}
-			}
-			iNdEx -= sizeOfWire
+			iNdEx = preIndex
 			skippy, err := skipVerifierconfig(data[iNdEx:])
 			if err != nil {
 				return err
@@ -633,6 +680,9 @@ func (m *VerifierConfig) Unmarshal(data []byte) error {
 		}
 	}
 
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
 	return nil
 }
 func skipVerifierconfig(data []byte) (n int, err error) {
@@ -641,6 +691,9 @@ func skipVerifierconfig(data []byte) (n int, err error) {
 	for iNdEx < l {
 		var wire uint64
 		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return 0, ErrIntOverflowVerifierconfig
+			}
 			if iNdEx >= l {
 				return 0, io.ErrUnexpectedEOF
 			}
@@ -654,7 +707,10 @@ func skipVerifierconfig(data []byte) (n int, err error) {
 		wireType := int(wire & 0x7)
 		switch wireType {
 		case 0:
-			for {
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return 0, ErrIntOverflowVerifierconfig
+				}
 				if iNdEx >= l {
 					return 0, io.ErrUnexpectedEOF
 				}
@@ -670,6 +726,9 @@ func skipVerifierconfig(data []byte) (n int, err error) {
 		case 2:
 			var length int
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return 0, ErrIntOverflowVerifierconfig
+				}
 				if iNdEx >= l {
 					return 0, io.ErrUnexpectedEOF
 				}
@@ -690,6 +749,9 @@ func skipVerifierconfig(data []byte) (n int, err error) {
 				var innerWire uint64
 				var start int = iNdEx
 				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return 0, ErrIntOverflowVerifierconfig
+					}
 					if iNdEx >= l {
 						return 0, io.ErrUnexpectedEOF
 					}
@@ -725,4 +787,5 @@ func skipVerifierconfig(data []byte) (n int, err error) {
 
 var (
 	ErrInvalidLengthVerifierconfig = fmt.Errorf("proto: negative length found during unmarshaling")
+	ErrIntOverflowVerifierconfig   = fmt.Errorf("proto: integer overflow")
 )

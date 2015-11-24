@@ -4,11 +4,14 @@
 
 package proto
 
+import proto1 "github.com/andres-erbsen/protobuf/proto"
+import fmt "fmt"
+import math "math"
+
 // discarding unused import gogoproto "gogoproto"
 
 import strconv "strconv"
 
-import fmt "fmt"
 import bytes "bytes"
 
 import strings "strings"
@@ -17,6 +20,11 @@ import sort "sort"
 import reflect "reflect"
 
 import io "io"
+
+// Reference imports to suppress errors if they are not otherwise used.
+var _ = proto1.Marshal
+var _ = fmt.Errorf
+var _ = math.Inf
 
 type TLSVersion int32
 
@@ -225,10 +233,10 @@ func (m *CertificateAndKeyID) Reset()      { *m = CertificateAndKeyID{} }
 func (*CertificateAndKeyID) ProtoMessage() {}
 
 func init() {
-	github_com_andres_erbsen_protobuf_proto.RegisterEnum("proto.TLSVersion", TLSVersion_name, TLSVersion_value)
-	github_com_andres_erbsen_protobuf_proto.RegisterEnum("proto.ClientAuthType", ClientAuthType_name, ClientAuthType_value)
-	github_com_andres_erbsen_protobuf_proto.RegisterEnum("proto.CipherSuite", CipherSuite_name, CipherSuite_value)
-	github_com_andres_erbsen_protobuf_proto.RegisterEnum("proto.CurveID", CurveID_name, CurveID_value)
+	proto1.RegisterEnum("proto.TLSVersion", TLSVersion_name, TLSVersion_value)
+	proto1.RegisterEnum("proto.ClientAuthType", ClientAuthType_name, ClientAuthType_value)
+	proto1.RegisterEnum("proto.CipherSuite", CipherSuite_name, CipherSuite_value)
+	proto1.RegisterEnum("proto.CurveID", CurveID_name, CurveID_value)
 }
 func (x TLSVersion) String() string {
 	s, ok := TLSVersion_name[int32(x)]
@@ -516,31 +524,37 @@ func (this *TLSConfig) GoString() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings.Join([]string{`&proto.TLSConfig{` +
-		`Certificates:` + fmt.Sprintf("%#v", this.Certificates),
-		`RootCAs:` + fmt.Sprintf("%#v", this.RootCAs),
-		`NextProtos:` + fmt.Sprintf("%#v", this.NextProtos),
-		`ServerName:` + fmt.Sprintf("%#v", this.ServerName),
-		`ClientAuth:` + fmt.Sprintf("%#v", this.ClientAuth),
-		`ClientCAs:` + fmt.Sprintf("%#v", this.ClientCAs),
-		`CipherSuites:` + fmt.Sprintf("%#v", this.CipherSuites),
-		`PreferServerCipherSuites:` + fmt.Sprintf("%#v", this.PreferServerCipherSuites),
-		`SessionTicketsEnabled:` + fmt.Sprintf("%#v", this.SessionTicketsEnabled),
-		`SessionTicketKeyID:` + fmt.Sprintf("%#v", this.SessionTicketKeyID),
-		`MinVersion:` + fmt.Sprintf("%#v", this.MinVersion),
-		`MaxVersion:` + fmt.Sprintf("%#v", this.MaxVersion),
-		`CurvePreferences:` + fmt.Sprintf("%#v", this.CurvePreferences) + `}`}, ", ")
-	return s
+	s := make([]string, 0, 17)
+	s = append(s, "&proto.TLSConfig{")
+	if this.Certificates != nil {
+		s = append(s, "Certificates: "+fmt.Sprintf("%#v", this.Certificates)+",\n")
+	}
+	s = append(s, "RootCAs: "+fmt.Sprintf("%#v", this.RootCAs)+",\n")
+	s = append(s, "NextProtos: "+fmt.Sprintf("%#v", this.NextProtos)+",\n")
+	s = append(s, "ServerName: "+fmt.Sprintf("%#v", this.ServerName)+",\n")
+	s = append(s, "ClientAuth: "+fmt.Sprintf("%#v", this.ClientAuth)+",\n")
+	s = append(s, "ClientCAs: "+fmt.Sprintf("%#v", this.ClientCAs)+",\n")
+	s = append(s, "CipherSuites: "+fmt.Sprintf("%#v", this.CipherSuites)+",\n")
+	s = append(s, "PreferServerCipherSuites: "+fmt.Sprintf("%#v", this.PreferServerCipherSuites)+",\n")
+	s = append(s, "SessionTicketsEnabled: "+fmt.Sprintf("%#v", this.SessionTicketsEnabled)+",\n")
+	s = append(s, "SessionTicketKeyID: "+fmt.Sprintf("%#v", this.SessionTicketKeyID)+",\n")
+	s = append(s, "MinVersion: "+fmt.Sprintf("%#v", this.MinVersion)+",\n")
+	s = append(s, "MaxVersion: "+fmt.Sprintf("%#v", this.MaxVersion)+",\n")
+	s = append(s, "CurvePreferences: "+fmt.Sprintf("%#v", this.CurvePreferences)+",\n")
+	s = append(s, "}")
+	return strings.Join(s, "")
 }
 func (this *CertificateAndKeyID) GoString() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings.Join([]string{`&proto.CertificateAndKeyID{` +
-		`Certificate:` + fmt.Sprintf("%#v", this.Certificate),
-		`KeyID:` + fmt.Sprintf("%#v", this.KeyID),
-		`OCSPStaple:` + fmt.Sprintf("%#v", this.OCSPStaple) + `}`}, ", ")
-	return s
+	s := make([]string, 0, 7)
+	s = append(s, "&proto.CertificateAndKeyID{")
+	s = append(s, "Certificate: "+fmt.Sprintf("%#v", this.Certificate)+",\n")
+	s = append(s, "KeyID: "+fmt.Sprintf("%#v", this.KeyID)+",\n")
+	s = append(s, "OCSPStaple: "+fmt.Sprintf("%#v", this.OCSPStaple)+",\n")
+	s = append(s, "}")
+	return strings.Join(s, "")
 }
 func valueToGoStringTlsconfig(v interface{}, typ string) string {
 	rv := reflect.ValueOf(v)
@@ -1048,8 +1062,12 @@ func (m *TLSConfig) Unmarshal(data []byte) error {
 	l := len(data)
 	iNdEx := 0
 	for iNdEx < l {
+		preIndex := iNdEx
 		var wire uint64
 		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowTlsconfig
+			}
 			if iNdEx >= l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1062,6 +1080,12 @@ func (m *TLSConfig) Unmarshal(data []byte) error {
 		}
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: TLSConfig: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: TLSConfig: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
@@ -1069,6 +1093,9 @@ func (m *TLSConfig) Unmarshal(data []byte) error {
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTlsconfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -1079,10 +1106,10 @@ func (m *TLSConfig) Unmarshal(data []byte) error {
 					break
 				}
 			}
-			postIndex := iNdEx + msglen
 			if msglen < 0 {
 				return ErrInvalidLengthTlsconfig
 			}
+			postIndex := iNdEx + msglen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1097,6 +1124,9 @@ func (m *TLSConfig) Unmarshal(data []byte) error {
 			}
 			var byteLen int
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTlsconfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -1123,6 +1153,9 @@ func (m *TLSConfig) Unmarshal(data []byte) error {
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTlsconfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -1133,7 +1166,11 @@ func (m *TLSConfig) Unmarshal(data []byte) error {
 					break
 				}
 			}
-			postIndex := iNdEx + int(stringLen)
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthTlsconfig
+			}
+			postIndex := iNdEx + intStringLen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1145,6 +1182,9 @@ func (m *TLSConfig) Unmarshal(data []byte) error {
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTlsconfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -1155,7 +1195,11 @@ func (m *TLSConfig) Unmarshal(data []byte) error {
 					break
 				}
 			}
-			postIndex := iNdEx + int(stringLen)
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthTlsconfig
+			}
+			postIndex := iNdEx + intStringLen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1167,6 +1211,9 @@ func (m *TLSConfig) Unmarshal(data []byte) error {
 			}
 			m.ClientAuth = 0
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTlsconfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -1183,6 +1230,9 @@ func (m *TLSConfig) Unmarshal(data []byte) error {
 			}
 			var byteLen int
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTlsconfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -1209,6 +1259,9 @@ func (m *TLSConfig) Unmarshal(data []byte) error {
 			}
 			var v CipherSuite
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTlsconfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -1226,6 +1279,9 @@ func (m *TLSConfig) Unmarshal(data []byte) error {
 			}
 			var v int
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTlsconfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -1243,6 +1299,9 @@ func (m *TLSConfig) Unmarshal(data []byte) error {
 			}
 			var v int
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTlsconfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -1260,6 +1319,9 @@ func (m *TLSConfig) Unmarshal(data []byte) error {
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTlsconfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -1270,7 +1332,11 @@ func (m *TLSConfig) Unmarshal(data []byte) error {
 					break
 				}
 			}
-			postIndex := iNdEx + int(stringLen)
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthTlsconfig
+			}
+			postIndex := iNdEx + intStringLen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1282,6 +1348,9 @@ func (m *TLSConfig) Unmarshal(data []byte) error {
 			}
 			m.MinVersion = 0
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTlsconfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -1298,6 +1367,9 @@ func (m *TLSConfig) Unmarshal(data []byte) error {
 			}
 			m.MaxVersion = 0
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTlsconfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -1314,6 +1386,9 @@ func (m *TLSConfig) Unmarshal(data []byte) error {
 			}
 			var v CurveID
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTlsconfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -1326,15 +1401,7 @@ func (m *TLSConfig) Unmarshal(data []byte) error {
 			}
 			m.CurvePreferences = append(m.CurvePreferences, v)
 		default:
-			var sizeOfWire int
-			for {
-				sizeOfWire++
-				wire >>= 7
-				if wire == 0 {
-					break
-				}
-			}
-			iNdEx -= sizeOfWire
+			iNdEx = preIndex
 			skippy, err := skipTlsconfig(data[iNdEx:])
 			if err != nil {
 				return err
@@ -1349,14 +1416,21 @@ func (m *TLSConfig) Unmarshal(data []byte) error {
 		}
 	}
 
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
 	return nil
 }
 func (m *CertificateAndKeyID) Unmarshal(data []byte) error {
 	l := len(data)
 	iNdEx := 0
 	for iNdEx < l {
+		preIndex := iNdEx
 		var wire uint64
 		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowTlsconfig
+			}
 			if iNdEx >= l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1369,6 +1443,12 @@ func (m *CertificateAndKeyID) Unmarshal(data []byte) error {
 		}
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: CertificateAndKeyID: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: CertificateAndKeyID: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
@@ -1376,6 +1456,9 @@ func (m *CertificateAndKeyID) Unmarshal(data []byte) error {
 			}
 			var byteLen int
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTlsconfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -1402,6 +1485,9 @@ func (m *CertificateAndKeyID) Unmarshal(data []byte) error {
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTlsconfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -1412,7 +1498,11 @@ func (m *CertificateAndKeyID) Unmarshal(data []byte) error {
 					break
 				}
 			}
-			postIndex := iNdEx + int(stringLen)
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthTlsconfig
+			}
+			postIndex := iNdEx + intStringLen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -1424,6 +1514,9 @@ func (m *CertificateAndKeyID) Unmarshal(data []byte) error {
 			}
 			var byteLen int
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTlsconfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -1444,15 +1537,7 @@ func (m *CertificateAndKeyID) Unmarshal(data []byte) error {
 			m.OCSPStaple = append([]byte{}, data[iNdEx:postIndex]...)
 			iNdEx = postIndex
 		default:
-			var sizeOfWire int
-			for {
-				sizeOfWire++
-				wire >>= 7
-				if wire == 0 {
-					break
-				}
-			}
-			iNdEx -= sizeOfWire
+			iNdEx = preIndex
 			skippy, err := skipTlsconfig(data[iNdEx:])
 			if err != nil {
 				return err
@@ -1467,6 +1552,9 @@ func (m *CertificateAndKeyID) Unmarshal(data []byte) error {
 		}
 	}
 
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
 	return nil
 }
 func skipTlsconfig(data []byte) (n int, err error) {
@@ -1475,6 +1563,9 @@ func skipTlsconfig(data []byte) (n int, err error) {
 	for iNdEx < l {
 		var wire uint64
 		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return 0, ErrIntOverflowTlsconfig
+			}
 			if iNdEx >= l {
 				return 0, io.ErrUnexpectedEOF
 			}
@@ -1488,7 +1579,10 @@ func skipTlsconfig(data []byte) (n int, err error) {
 		wireType := int(wire & 0x7)
 		switch wireType {
 		case 0:
-			for {
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return 0, ErrIntOverflowTlsconfig
+				}
 				if iNdEx >= l {
 					return 0, io.ErrUnexpectedEOF
 				}
@@ -1504,6 +1598,9 @@ func skipTlsconfig(data []byte) (n int, err error) {
 		case 2:
 			var length int
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return 0, ErrIntOverflowTlsconfig
+				}
 				if iNdEx >= l {
 					return 0, io.ErrUnexpectedEOF
 				}
@@ -1524,6 +1621,9 @@ func skipTlsconfig(data []byte) (n int, err error) {
 				var innerWire uint64
 				var start int = iNdEx
 				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return 0, ErrIntOverflowTlsconfig
+					}
 					if iNdEx >= l {
 						return 0, io.ErrUnexpectedEOF
 					}
@@ -1559,4 +1659,5 @@ func skipTlsconfig(data []byte) (n int, err error) {
 
 var (
 	ErrInvalidLengthTlsconfig = fmt.Errorf("proto: negative length found during unmarshaling")
+	ErrIntOverflowTlsconfig   = fmt.Errorf("proto: integer overflow")
 )

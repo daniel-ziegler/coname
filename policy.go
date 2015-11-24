@@ -33,8 +33,8 @@ func VerifyUpdate(current *proto.Entry, update *proto.SignedEntryUpdate) error {
 		if !VerifyPolicy(current.UpdatePolicy, update.NewEntry.Encoding, update.Signatures) {
 			return fmt.Errorf("VerifyUpdate: replacing an entry requires authorization from the old key, but signature verification failed")
 		}
-		if next.Version < current.Version {
-			return fmt.Errorf("VerifyUpdate: entry version must not decrease (got %d < %d)", next.Version, current.Version)
+		if next.Version <= current.Version {
+			return fmt.Errorf("VerifyUpdate: entry version must increase (got %d <= %d)", next.Version, current.Version)
 		}
 	} else if next.Version != 0 {
 		return fmt.Errorf("VerifyUpdate: registering a new entry must use version number 0 (got %d)", next.Version)
@@ -61,9 +61,9 @@ func VerifyPolicy(policy *proto.AuthorizationPolicy, action []byte, evidence map
 			have[id] = struct{}{}
 		}
 	}
-	switch {
-	case policy.Quorum != nil:
-		return CheckQuorum(policy.Quorum, have)
+	switch policy.PolicyType.(type) {
+	case *proto.AuthorizationPolicy_Quorum:
+		return CheckQuorum(policy.PolicyType.(*proto.AuthorizationPolicy_Quorum).Quorum, have)
 	default: // unknown policy
 		return false
 	}
@@ -73,11 +73,11 @@ func VerifyPolicy(policy *proto.AuthorizationPolicy, action []byte, evidence map
 // verifier.
 // pk, message, sig : &const // none of the inputs are modified
 func VerifySignature(pk *proto.PublicKey, message []byte, sig []byte) bool {
-	switch {
-	case pk.Ed25519 != nil:
+	switch pk.PubkeyType.(type) {
+	case *proto.PublicKey_Ed25519:
 		var edpk [32]byte
 		var edsig [64]byte
-		copy(edpk[:], pk.Ed25519[:])
+		copy(edpk[:], pk.PubkeyType.(*proto.PublicKey_Ed25519).Ed25519[:])
 		copy(edsig[:], sig)
 		return ed25519.Verify(&edpk, message, &edsig)
 	default:

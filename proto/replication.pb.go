@@ -4,9 +4,11 @@
 
 package proto
 
-// discarding unused import gogoproto "gogoproto"
-
+import proto1 "github.com/andres-erbsen/protobuf/proto"
 import fmt "fmt"
+import math "math"
+
+// discarding unused import gogoproto "gogoproto"
 
 import strings "strings"
 import github_com_andres_erbsen_protobuf_proto "github.com/andres-erbsen/protobuf/proto"
@@ -16,70 +18,170 @@ import reflect "reflect"
 
 import io "io"
 
+// Reference imports to suppress errors if they are not otherwise used.
+var _ = proto1.Marshal
+var _ = fmt.Errorf
+var _ = math.Inf
+
 // KeyserverStep denotes the input to a single step of the keyserver state
 // machine. Serializable high-availability replication is achieved by
 // replicating an in-order log of all steps and having each replica reproduce
 // the state from them.
 type KeyserverStep struct {
-	UID uint64 `protobuf:"fixed64,1,opt,proto3" json:"UID,omitempty"`
-	// Update is appended to the log when it is received from a client and
-	// has passed pre-validation. However, since pre-validation is not
-	// final, "success" should not be returned to the client until after the
-	// update has been applied and ratified.
-	// update is applied to the keyserver state as soon as it has been
-	// committed to the log.
-	Update *UpdateRequest `protobuf:"bytes,2,opt,name=update" json:"update,omitempty"`
-	// EpochDelimiter is appended to the log by a leader (not necessarily
-	// unique) node when at least the duration EPOCH_INTERVAL_MIN and at
-	// most EPOCH_INTERVAL_MAX after the previous epoch_delimiter has passed.
-	// Between these times, an epoch delimiter is appended as soon as an
-	// update is committed.
-	// As the leader requirement for appending an epoch_delimiter is soft,
-	// it may happen that an epoch delimiter with a epoch number not higher
-	// than the previous gets committed to the log. It must be ignored.
-	EpochDelimiter *EpochDelimiter `protobuf:"bytes,3,opt,name=epoch_delimiter" json:"epoch_delimiter,omitempty"`
-	// ReplicaSigned for the last epoch is appended to the log
-	// when the epoch_delimiter is committed.
-	// After some majority of the replicas has signed the next
-	// TimestampedEpochHead; their signatures make up the keyserver
-	// signature. As combining signatures is deterministic, no new log
-	// entry is appended to record that.
-	ReplicaSigned *SignedEpochHead `protobuf:"bytes,4,opt,name=replica_signed" json:"replica_signed,omitempty"`
-	// VerifierSigned is appended for each new SignedEpochHead received
-	// from a verifier; these are used to provide proof of verification to
-	// clients.
-	VerifierSigned *SignedEpochHead `protobuf:"bytes,5,opt,name=verifier_signed" json:"verifier_signed,omitempty"`
+	UID uint64 `protobuf:"fixed64,1,opt,name=UID,proto3" json:"UID,omitempty"`
+	// TODO: should all fields in a oneof have their own types for extensibility?
+	//
+	// Types that are valid to be assigned to Type:
+	//	*KeyserverStep_Update
+	//	*KeyserverStep_EpochDelimiter
+	//	*KeyserverStep_ReplicaSigned
+	//	*KeyserverStep_VerifierSigned
+	Type isKeyserverStep_Type `protobuf_oneof:"type"`
 }
 
 func (m *KeyserverStep) Reset()      { *m = KeyserverStep{} }
 func (*KeyserverStep) ProtoMessage() {}
 
-func (m *KeyserverStep) GetUpdate() *UpdateRequest {
+type isKeyserverStep_Type interface {
+	isKeyserverStep_Type()
+	Equal(interface{}) bool
+	VerboseEqual(interface{}) error
+	MarshalTo([]byte) (int, error)
+	Size() int
+}
+
+type KeyserverStep_Update struct {
+	Update *UpdateRequest `protobuf:"bytes,2,opt,name=update,oneof"`
+}
+type KeyserverStep_EpochDelimiter struct {
+	EpochDelimiter *EpochDelimiter `protobuf:"bytes,3,opt,name=epoch_delimiter,oneof"`
+}
+type KeyserverStep_ReplicaSigned struct {
+	ReplicaSigned *SignedEpochHead `protobuf:"bytes,4,opt,name=replica_signed,oneof"`
+}
+type KeyserverStep_VerifierSigned struct {
+	VerifierSigned *SignedEpochHead `protobuf:"bytes,5,opt,name=verifier_signed,oneof"`
+}
+
+func (*KeyserverStep_Update) isKeyserverStep_Type()         {}
+func (*KeyserverStep_EpochDelimiter) isKeyserverStep_Type() {}
+func (*KeyserverStep_ReplicaSigned) isKeyserverStep_Type()  {}
+func (*KeyserverStep_VerifierSigned) isKeyserverStep_Type() {}
+
+func (m *KeyserverStep) GetType() isKeyserverStep_Type {
 	if m != nil {
-		return m.Update
+		return m.Type
+	}
+	return nil
+}
+
+func (m *KeyserverStep) GetUpdate() *UpdateRequest {
+	if x, ok := m.GetType().(*KeyserverStep_Update); ok {
+		return x.Update
 	}
 	return nil
 }
 
 func (m *KeyserverStep) GetEpochDelimiter() *EpochDelimiter {
-	if m != nil {
-		return m.EpochDelimiter
+	if x, ok := m.GetType().(*KeyserverStep_EpochDelimiter); ok {
+		return x.EpochDelimiter
 	}
 	return nil
 }
 
 func (m *KeyserverStep) GetReplicaSigned() *SignedEpochHead {
-	if m != nil {
-		return m.ReplicaSigned
+	if x, ok := m.GetType().(*KeyserverStep_ReplicaSigned); ok {
+		return x.ReplicaSigned
 	}
 	return nil
 }
 
 func (m *KeyserverStep) GetVerifierSigned() *SignedEpochHead {
-	if m != nil {
-		return m.VerifierSigned
+	if x, ok := m.GetType().(*KeyserverStep_VerifierSigned); ok {
+		return x.VerifierSigned
 	}
 	return nil
+}
+
+// XXX_OneofFuncs is for the internal use of the proto package.
+func (*KeyserverStep) XXX_OneofFuncs() (func(msg proto1.Message, b *proto1.Buffer) error, func(msg proto1.Message, tag, wire int, b *proto1.Buffer) (bool, error), []interface{}) {
+	return _KeyserverStep_OneofMarshaler, _KeyserverStep_OneofUnmarshaler, []interface{}{
+		(*KeyserverStep_Update)(nil),
+		(*KeyserverStep_EpochDelimiter)(nil),
+		(*KeyserverStep_ReplicaSigned)(nil),
+		(*KeyserverStep_VerifierSigned)(nil),
+	}
+}
+
+func _KeyserverStep_OneofMarshaler(msg proto1.Message, b *proto1.Buffer) error {
+	m := msg.(*KeyserverStep)
+	// type
+	switch x := m.Type.(type) {
+	case *KeyserverStep_Update:
+		_ = b.EncodeVarint(2<<3 | proto1.WireBytes)
+		if err := b.EncodeMessage(x.Update); err != nil {
+			return err
+		}
+	case *KeyserverStep_EpochDelimiter:
+		_ = b.EncodeVarint(3<<3 | proto1.WireBytes)
+		if err := b.EncodeMessage(x.EpochDelimiter); err != nil {
+			return err
+		}
+	case *KeyserverStep_ReplicaSigned:
+		_ = b.EncodeVarint(4<<3 | proto1.WireBytes)
+		if err := b.EncodeMessage(x.ReplicaSigned); err != nil {
+			return err
+		}
+	case *KeyserverStep_VerifierSigned:
+		_ = b.EncodeVarint(5<<3 | proto1.WireBytes)
+		if err := b.EncodeMessage(x.VerifierSigned); err != nil {
+			return err
+		}
+	case nil:
+	default:
+		return fmt.Errorf("KeyserverStep.Type has unexpected type %T", x)
+	}
+	return nil
+}
+
+func _KeyserverStep_OneofUnmarshaler(msg proto1.Message, tag, wire int, b *proto1.Buffer) (bool, error) {
+	m := msg.(*KeyserverStep)
+	switch tag {
+	case 2: // type.update
+		if wire != proto1.WireBytes {
+			return true, proto1.ErrInternalBadWireType
+		}
+		msg := new(UpdateRequest)
+		err := b.DecodeMessage(msg)
+		m.Type = &KeyserverStep_Update{msg}
+		return true, err
+	case 3: // type.epoch_delimiter
+		if wire != proto1.WireBytes {
+			return true, proto1.ErrInternalBadWireType
+		}
+		msg := new(EpochDelimiter)
+		err := b.DecodeMessage(msg)
+		m.Type = &KeyserverStep_EpochDelimiter{msg}
+		return true, err
+	case 4: // type.replica_signed
+		if wire != proto1.WireBytes {
+			return true, proto1.ErrInternalBadWireType
+		}
+		msg := new(SignedEpochHead)
+		err := b.DecodeMessage(msg)
+		m.Type = &KeyserverStep_ReplicaSigned{msg}
+		return true, err
+	case 5: // type.verifier_signed
+		if wire != proto1.WireBytes {
+			return true, proto1.ErrInternalBadWireType
+		}
+		msg := new(SignedEpochHead)
+		err := b.DecodeMessage(msg)
+		m.Type = &KeyserverStep_VerifierSigned{msg}
+		return true, err
+	default:
+		return false, nil
+	}
 }
 
 type EpochDelimiter struct {
@@ -120,14 +222,111 @@ func (this *KeyserverStep) VerboseEqual(that interface{}) error {
 	if this.UID != that1.UID {
 		return fmt.Errorf("UID this(%v) Not Equal that(%v)", this.UID, that1.UID)
 	}
+	if that1.Type == nil {
+		if this.Type != nil {
+			return fmt.Errorf("this.Type != nil && that1.Type == nil")
+		}
+	} else if this.Type == nil {
+		return fmt.Errorf("this.Type == nil && that1.Type != nil")
+	} else if err := this.Type.VerboseEqual(that1.Type); err != nil {
+		return err
+	}
+	return nil
+}
+func (this *KeyserverStep_Update) VerboseEqual(that interface{}) error {
+	if that == nil {
+		if this == nil {
+			return nil
+		}
+		return fmt.Errorf("that == nil && this != nil")
+	}
+
+	that1, ok := that.(*KeyserverStep_Update)
+	if !ok {
+		return fmt.Errorf("that is not of type *KeyserverStep_Update")
+	}
+	if that1 == nil {
+		if this == nil {
+			return nil
+		}
+		return fmt.Errorf("that is type *KeyserverStep_Update but is nil && this != nil")
+	} else if this == nil {
+		return fmt.Errorf("that is type *KeyserverStep_Updatebut is not nil && this == nil")
+	}
 	if !this.Update.Equal(that1.Update) {
 		return fmt.Errorf("Update this(%v) Not Equal that(%v)", this.Update, that1.Update)
+	}
+	return nil
+}
+func (this *KeyserverStep_EpochDelimiter) VerboseEqual(that interface{}) error {
+	if that == nil {
+		if this == nil {
+			return nil
+		}
+		return fmt.Errorf("that == nil && this != nil")
+	}
+
+	that1, ok := that.(*KeyserverStep_EpochDelimiter)
+	if !ok {
+		return fmt.Errorf("that is not of type *KeyserverStep_EpochDelimiter")
+	}
+	if that1 == nil {
+		if this == nil {
+			return nil
+		}
+		return fmt.Errorf("that is type *KeyserverStep_EpochDelimiter but is nil && this != nil")
+	} else if this == nil {
+		return fmt.Errorf("that is type *KeyserverStep_EpochDelimiterbut is not nil && this == nil")
 	}
 	if !this.EpochDelimiter.Equal(that1.EpochDelimiter) {
 		return fmt.Errorf("EpochDelimiter this(%v) Not Equal that(%v)", this.EpochDelimiter, that1.EpochDelimiter)
 	}
+	return nil
+}
+func (this *KeyserverStep_ReplicaSigned) VerboseEqual(that interface{}) error {
+	if that == nil {
+		if this == nil {
+			return nil
+		}
+		return fmt.Errorf("that == nil && this != nil")
+	}
+
+	that1, ok := that.(*KeyserverStep_ReplicaSigned)
+	if !ok {
+		return fmt.Errorf("that is not of type *KeyserverStep_ReplicaSigned")
+	}
+	if that1 == nil {
+		if this == nil {
+			return nil
+		}
+		return fmt.Errorf("that is type *KeyserverStep_ReplicaSigned but is nil && this != nil")
+	} else if this == nil {
+		return fmt.Errorf("that is type *KeyserverStep_ReplicaSignedbut is not nil && this == nil")
+	}
 	if !this.ReplicaSigned.Equal(that1.ReplicaSigned) {
 		return fmt.Errorf("ReplicaSigned this(%v) Not Equal that(%v)", this.ReplicaSigned, that1.ReplicaSigned)
+	}
+	return nil
+}
+func (this *KeyserverStep_VerifierSigned) VerboseEqual(that interface{}) error {
+	if that == nil {
+		if this == nil {
+			return nil
+		}
+		return fmt.Errorf("that == nil && this != nil")
+	}
+
+	that1, ok := that.(*KeyserverStep_VerifierSigned)
+	if !ok {
+		return fmt.Errorf("that is not of type *KeyserverStep_VerifierSigned")
+	}
+	if that1 == nil {
+		if this == nil {
+			return nil
+		}
+		return fmt.Errorf("that is type *KeyserverStep_VerifierSigned but is nil && this != nil")
+	} else if this == nil {
+		return fmt.Errorf("that is type *KeyserverStep_VerifierSignedbut is not nil && this == nil")
 	}
 	if !this.VerifierSigned.Equal(that1.VerifierSigned) {
 		return fmt.Errorf("VerifierSigned this(%v) Not Equal that(%v)", this.VerifierSigned, that1.VerifierSigned)
@@ -157,13 +356,110 @@ func (this *KeyserverStep) Equal(that interface{}) bool {
 	if this.UID != that1.UID {
 		return false
 	}
+	if that1.Type == nil {
+		if this.Type != nil {
+			return false
+		}
+	} else if this.Type == nil {
+		return false
+	} else if !this.Type.Equal(that1.Type) {
+		return false
+	}
+	return true
+}
+func (this *KeyserverStep_Update) Equal(that interface{}) bool {
+	if that == nil {
+		if this == nil {
+			return true
+		}
+		return false
+	}
+
+	that1, ok := that.(*KeyserverStep_Update)
+	if !ok {
+		return false
+	}
+	if that1 == nil {
+		if this == nil {
+			return true
+		}
+		return false
+	} else if this == nil {
+		return false
+	}
 	if !this.Update.Equal(that1.Update) {
+		return false
+	}
+	return true
+}
+func (this *KeyserverStep_EpochDelimiter) Equal(that interface{}) bool {
+	if that == nil {
+		if this == nil {
+			return true
+		}
+		return false
+	}
+
+	that1, ok := that.(*KeyserverStep_EpochDelimiter)
+	if !ok {
+		return false
+	}
+	if that1 == nil {
+		if this == nil {
+			return true
+		}
+		return false
+	} else if this == nil {
 		return false
 	}
 	if !this.EpochDelimiter.Equal(that1.EpochDelimiter) {
 		return false
 	}
+	return true
+}
+func (this *KeyserverStep_ReplicaSigned) Equal(that interface{}) bool {
+	if that == nil {
+		if this == nil {
+			return true
+		}
+		return false
+	}
+
+	that1, ok := that.(*KeyserverStep_ReplicaSigned)
+	if !ok {
+		return false
+	}
+	if that1 == nil {
+		if this == nil {
+			return true
+		}
+		return false
+	} else if this == nil {
+		return false
+	}
 	if !this.ReplicaSigned.Equal(that1.ReplicaSigned) {
+		return false
+	}
+	return true
+}
+func (this *KeyserverStep_VerifierSigned) Equal(that interface{}) bool {
+	if that == nil {
+		if this == nil {
+			return true
+		}
+		return false
+	}
+
+	that1, ok := that.(*KeyserverStep_VerifierSigned)
+	if !ok {
+		return false
+	}
+	if that1 == nil {
+		if this == nil {
+			return true
+		}
+		return false
+	} else if this == nil {
 		return false
 	}
 	if !this.VerifierSigned.Equal(that1.VerifierSigned) {
@@ -231,11 +527,44 @@ func (this *KeyserverStep) GoString() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings.Join([]string{`&proto.KeyserverStep{` +
-		`UID:` + fmt.Sprintf("%#v", this.UID),
-		`Update:` + fmt.Sprintf("%#v", this.Update),
-		`EpochDelimiter:` + fmt.Sprintf("%#v", this.EpochDelimiter),
-		`ReplicaSigned:` + fmt.Sprintf("%#v", this.ReplicaSigned),
+	s := make([]string, 0, 9)
+	s = append(s, "&proto.KeyserverStep{")
+	s = append(s, "UID: "+fmt.Sprintf("%#v", this.UID)+",\n")
+	if this.Type != nil {
+		s = append(s, "Type: "+fmt.Sprintf("%#v", this.Type)+",\n")
+	}
+	s = append(s, "}")
+	return strings.Join(s, "")
+}
+func (this *KeyserverStep_Update) GoString() string {
+	if this == nil {
+		return "nil"
+	}
+	s := strings.Join([]string{`&proto.KeyserverStep_Update{` +
+		`Update:` + fmt.Sprintf("%#v", this.Update) + `}`}, ", ")
+	return s
+}
+func (this *KeyserverStep_EpochDelimiter) GoString() string {
+	if this == nil {
+		return "nil"
+	}
+	s := strings.Join([]string{`&proto.KeyserverStep_EpochDelimiter{` +
+		`EpochDelimiter:` + fmt.Sprintf("%#v", this.EpochDelimiter) + `}`}, ", ")
+	return s
+}
+func (this *KeyserverStep_ReplicaSigned) GoString() string {
+	if this == nil {
+		return "nil"
+	}
+	s := strings.Join([]string{`&proto.KeyserverStep_ReplicaSigned{` +
+		`ReplicaSigned:` + fmt.Sprintf("%#v", this.ReplicaSigned) + `}`}, ", ")
+	return s
+}
+func (this *KeyserverStep_VerifierSigned) GoString() string {
+	if this == nil {
+		return "nil"
+	}
+	s := strings.Join([]string{`&proto.KeyserverStep_VerifierSigned{` +
 		`VerifierSigned:` + fmt.Sprintf("%#v", this.VerifierSigned) + `}`}, ", ")
 	return s
 }
@@ -243,10 +572,12 @@ func (this *EpochDelimiter) GoString() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings.Join([]string{`&proto.EpochDelimiter{` +
-		`EpochNumber:` + fmt.Sprintf("%#v", this.EpochNumber),
-		`Timestamp:` + strings.Replace(this.Timestamp.GoString(), `&`, ``, 1) + `}`}, ", ")
-	return s
+	s := make([]string, 0, 6)
+	s = append(s, "&proto.EpochDelimiter{")
+	s = append(s, "EpochNumber: "+fmt.Sprintf("%#v", this.EpochNumber)+",\n")
+	s = append(s, "Timestamp: "+strings.Replace(this.Timestamp.GoString(), `&`, ``, 1)+",\n")
+	s = append(s, "}")
+	return strings.Join(s, "")
 }
 func valueToGoStringReplication(v interface{}, typ string) string {
 	rv := reflect.ValueOf(v)
@@ -293,41 +624,51 @@ func (m *KeyserverStep) MarshalTo(data []byte) (int, error) {
 		i++
 		i = encodeFixed64Replication(data, i, uint64(m.UID))
 	}
+	if m.Type != nil {
+		nn1, err := m.Type.MarshalTo(data[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += nn1
+	}
+	return i, nil
+}
+
+func (m *KeyserverStep_Update) MarshalTo(data []byte) (int, error) {
+	i := 0
 	if m.Update != nil {
 		data[i] = 0x12
 		i++
 		i = encodeVarintReplication(data, i, uint64(m.Update.Size()))
-		n1, err := m.Update.MarshalTo(data[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n1
-	}
-	if m.EpochDelimiter != nil {
-		data[i] = 0x1a
-		i++
-		i = encodeVarintReplication(data, i, uint64(m.EpochDelimiter.Size()))
-		n2, err := m.EpochDelimiter.MarshalTo(data[i:])
+		n2, err := m.Update.MarshalTo(data[i:])
 		if err != nil {
 			return 0, err
 		}
 		i += n2
 	}
-	if m.ReplicaSigned != nil {
-		data[i] = 0x22
+	return i, nil
+}
+func (m *KeyserverStep_EpochDelimiter) MarshalTo(data []byte) (int, error) {
+	i := 0
+	if m.EpochDelimiter != nil {
+		data[i] = 0x1a
 		i++
-		i = encodeVarintReplication(data, i, uint64(m.ReplicaSigned.Size()))
-		n3, err := m.ReplicaSigned.MarshalTo(data[i:])
+		i = encodeVarintReplication(data, i, uint64(m.EpochDelimiter.Size()))
+		n3, err := m.EpochDelimiter.MarshalTo(data[i:])
 		if err != nil {
 			return 0, err
 		}
 		i += n3
 	}
-	if m.VerifierSigned != nil {
-		data[i] = 0x2a
+	return i, nil
+}
+func (m *KeyserverStep_ReplicaSigned) MarshalTo(data []byte) (int, error) {
+	i := 0
+	if m.ReplicaSigned != nil {
+		data[i] = 0x22
 		i++
-		i = encodeVarintReplication(data, i, uint64(m.VerifierSigned.Size()))
-		n4, err := m.VerifierSigned.MarshalTo(data[i:])
+		i = encodeVarintReplication(data, i, uint64(m.ReplicaSigned.Size()))
+		n4, err := m.ReplicaSigned.MarshalTo(data[i:])
 		if err != nil {
 			return 0, err
 		}
@@ -335,7 +676,20 @@ func (m *KeyserverStep) MarshalTo(data []byte) (int, error) {
 	}
 	return i, nil
 }
-
+func (m *KeyserverStep_VerifierSigned) MarshalTo(data []byte) (int, error) {
+	i := 0
+	if m.VerifierSigned != nil {
+		data[i] = 0x2a
+		i++
+		i = encodeVarintReplication(data, i, uint64(m.VerifierSigned.Size()))
+		n5, err := m.VerifierSigned.MarshalTo(data[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n5
+	}
+	return i, nil
+}
 func (m *EpochDelimiter) Marshal() (data []byte, err error) {
 	size := m.Size()
 	data = make([]byte, size)
@@ -359,11 +713,11 @@ func (m *EpochDelimiter) MarshalTo(data []byte) (int, error) {
 	data[i] = 0x12
 	i++
 	i = encodeVarintReplication(data, i, uint64(m.Timestamp.Size()))
-	n5, err := m.Timestamp.MarshalTo(data[i:])
+	n6, err := m.Timestamp.MarshalTo(data[i:])
 	if err != nil {
 		return 0, err
 	}
-	i += n5
+	i += n6
 	return i, nil
 }
 
@@ -397,23 +751,42 @@ func encodeVarintReplication(data []byte, offset int, v uint64) int {
 func NewPopulatedKeyserverStep(r randyReplication, easy bool) *KeyserverStep {
 	this := &KeyserverStep{}
 	this.UID = uint64(uint64(r.Uint32()))
-	if r.Intn(10) != 0 {
-		this.Update = NewPopulatedUpdateRequest(r, easy)
-	}
-	if r.Intn(10) != 0 {
-		this.EpochDelimiter = NewPopulatedEpochDelimiter(r, easy)
-	}
-	if r.Intn(10) != 0 {
-		this.ReplicaSigned = NewPopulatedSignedEpochHead(r, easy)
-	}
-	if r.Intn(10) != 0 {
-		this.VerifierSigned = NewPopulatedSignedEpochHead(r, easy)
+	oneofNumber_Type := []int32{2, 3, 4, 5}[r.Intn(4)]
+	switch oneofNumber_Type {
+	case 2:
+		this.Type = NewPopulatedKeyserverStep_Update(r, easy)
+	case 3:
+		this.Type = NewPopulatedKeyserverStep_EpochDelimiter(r, easy)
+	case 4:
+		this.Type = NewPopulatedKeyserverStep_ReplicaSigned(r, easy)
+	case 5:
+		this.Type = NewPopulatedKeyserverStep_VerifierSigned(r, easy)
 	}
 	if !easy && r.Intn(10) != 0 {
 	}
 	return this
 }
 
+func NewPopulatedKeyserverStep_Update(r randyReplication, easy bool) *KeyserverStep_Update {
+	this := &KeyserverStep_Update{}
+	this.Update = NewPopulatedUpdateRequest(r, easy)
+	return this
+}
+func NewPopulatedKeyserverStep_EpochDelimiter(r randyReplication, easy bool) *KeyserverStep_EpochDelimiter {
+	this := &KeyserverStep_EpochDelimiter{}
+	this.EpochDelimiter = NewPopulatedEpochDelimiter(r, easy)
+	return this
+}
+func NewPopulatedKeyserverStep_ReplicaSigned(r randyReplication, easy bool) *KeyserverStep_ReplicaSigned {
+	this := &KeyserverStep_ReplicaSigned{}
+	this.ReplicaSigned = NewPopulatedSignedEpochHead(r, easy)
+	return this
+}
+func NewPopulatedKeyserverStep_VerifierSigned(r randyReplication, easy bool) *KeyserverStep_VerifierSigned {
+	this := &KeyserverStep_VerifierSigned{}
+	this.VerifierSigned = NewPopulatedSignedEpochHead(r, easy)
+	return this
+}
 func NewPopulatedEpochDelimiter(r randyReplication, easy bool) *EpochDelimiter {
 	this := &EpochDelimiter{}
 	this.EpochNumber = uint64(uint64(r.Uint32()))
@@ -502,25 +875,48 @@ func (m *KeyserverStep) Size() (n int) {
 	if m.UID != 0 {
 		n += 9
 	}
+	if m.Type != nil {
+		n += m.Type.Size()
+	}
+	return n
+}
+
+func (m *KeyserverStep_Update) Size() (n int) {
+	var l int
+	_ = l
 	if m.Update != nil {
 		l = m.Update.Size()
 		n += 1 + l + sovReplication(uint64(l))
 	}
+	return n
+}
+func (m *KeyserverStep_EpochDelimiter) Size() (n int) {
+	var l int
+	_ = l
 	if m.EpochDelimiter != nil {
 		l = m.EpochDelimiter.Size()
 		n += 1 + l + sovReplication(uint64(l))
 	}
+	return n
+}
+func (m *KeyserverStep_ReplicaSigned) Size() (n int) {
+	var l int
+	_ = l
 	if m.ReplicaSigned != nil {
 		l = m.ReplicaSigned.Size()
 		n += 1 + l + sovReplication(uint64(l))
 	}
+	return n
+}
+func (m *KeyserverStep_VerifierSigned) Size() (n int) {
+	var l int
+	_ = l
 	if m.VerifierSigned != nil {
 		l = m.VerifierSigned.Size()
 		n += 1 + l + sovReplication(uint64(l))
 	}
 	return n
 }
-
 func (m *EpochDelimiter) Size() (n int) {
 	var l int
 	_ = l
@@ -551,9 +947,46 @@ func (this *KeyserverStep) String() string {
 	}
 	s := strings.Join([]string{`&KeyserverStep{`,
 		`UID:` + fmt.Sprintf("%v", this.UID) + `,`,
+		`Type:` + fmt.Sprintf("%v", this.Type) + `,`,
+		`}`,
+	}, "")
+	return s
+}
+func (this *KeyserverStep_Update) String() string {
+	if this == nil {
+		return "nil"
+	}
+	s := strings.Join([]string{`&KeyserverStep_Update{`,
 		`Update:` + strings.Replace(fmt.Sprintf("%v", this.Update), "UpdateRequest", "UpdateRequest", 1) + `,`,
+		`}`,
+	}, "")
+	return s
+}
+func (this *KeyserverStep_EpochDelimiter) String() string {
+	if this == nil {
+		return "nil"
+	}
+	s := strings.Join([]string{`&KeyserverStep_EpochDelimiter{`,
 		`EpochDelimiter:` + strings.Replace(fmt.Sprintf("%v", this.EpochDelimiter), "EpochDelimiter", "EpochDelimiter", 1) + `,`,
+		`}`,
+	}, "")
+	return s
+}
+func (this *KeyserverStep_ReplicaSigned) String() string {
+	if this == nil {
+		return "nil"
+	}
+	s := strings.Join([]string{`&KeyserverStep_ReplicaSigned{`,
 		`ReplicaSigned:` + strings.Replace(fmt.Sprintf("%v", this.ReplicaSigned), "SignedEpochHead", "SignedEpochHead", 1) + `,`,
+		`}`,
+	}, "")
+	return s
+}
+func (this *KeyserverStep_VerifierSigned) String() string {
+	if this == nil {
+		return "nil"
+	}
+	s := strings.Join([]string{`&KeyserverStep_VerifierSigned{`,
 		`VerifierSigned:` + strings.Replace(fmt.Sprintf("%v", this.VerifierSigned), "SignedEpochHead", "SignedEpochHead", 1) + `,`,
 		`}`,
 	}, "")
@@ -582,8 +1015,12 @@ func (m *KeyserverStep) Unmarshal(data []byte) error {
 	l := len(data)
 	iNdEx := 0
 	for iNdEx < l {
+		preIndex := iNdEx
 		var wire uint64
 		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowReplication
+			}
 			if iNdEx >= l {
 				return io.ErrUnexpectedEOF
 			}
@@ -596,6 +1033,12 @@ func (m *KeyserverStep) Unmarshal(data []byte) error {
 		}
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: KeyserverStep: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: KeyserverStep: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
 		switch fieldNum {
 		case 1:
 			if wireType != 1 {
@@ -620,6 +1063,9 @@ func (m *KeyserverStep) Unmarshal(data []byte) error {
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowReplication
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -630,19 +1076,18 @@ func (m *KeyserverStep) Unmarshal(data []byte) error {
 					break
 				}
 			}
-			postIndex := iNdEx + msglen
 			if msglen < 0 {
 				return ErrInvalidLengthReplication
 			}
+			postIndex := iNdEx + msglen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			if m.Update == nil {
-				m.Update = &UpdateRequest{}
-			}
-			if err := m.Update.Unmarshal(data[iNdEx:postIndex]); err != nil {
+			v := &UpdateRequest{}
+			if err := v.Unmarshal(data[iNdEx:postIndex]); err != nil {
 				return err
 			}
+			m.Type = &KeyserverStep_Update{v}
 			iNdEx = postIndex
 		case 3:
 			if wireType != 2 {
@@ -650,6 +1095,9 @@ func (m *KeyserverStep) Unmarshal(data []byte) error {
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowReplication
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -660,19 +1108,18 @@ func (m *KeyserverStep) Unmarshal(data []byte) error {
 					break
 				}
 			}
-			postIndex := iNdEx + msglen
 			if msglen < 0 {
 				return ErrInvalidLengthReplication
 			}
+			postIndex := iNdEx + msglen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			if m.EpochDelimiter == nil {
-				m.EpochDelimiter = &EpochDelimiter{}
-			}
-			if err := m.EpochDelimiter.Unmarshal(data[iNdEx:postIndex]); err != nil {
+			v := &EpochDelimiter{}
+			if err := v.Unmarshal(data[iNdEx:postIndex]); err != nil {
 				return err
 			}
+			m.Type = &KeyserverStep_EpochDelimiter{v}
 			iNdEx = postIndex
 		case 4:
 			if wireType != 2 {
@@ -680,6 +1127,9 @@ func (m *KeyserverStep) Unmarshal(data []byte) error {
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowReplication
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -690,19 +1140,18 @@ func (m *KeyserverStep) Unmarshal(data []byte) error {
 					break
 				}
 			}
-			postIndex := iNdEx + msglen
 			if msglen < 0 {
 				return ErrInvalidLengthReplication
 			}
+			postIndex := iNdEx + msglen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			if m.ReplicaSigned == nil {
-				m.ReplicaSigned = &SignedEpochHead{}
-			}
-			if err := m.ReplicaSigned.Unmarshal(data[iNdEx:postIndex]); err != nil {
+			v := &SignedEpochHead{}
+			if err := v.Unmarshal(data[iNdEx:postIndex]); err != nil {
 				return err
 			}
+			m.Type = &KeyserverStep_ReplicaSigned{v}
 			iNdEx = postIndex
 		case 5:
 			if wireType != 2 {
@@ -710,6 +1159,9 @@ func (m *KeyserverStep) Unmarshal(data []byte) error {
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowReplication
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -720,30 +1172,21 @@ func (m *KeyserverStep) Unmarshal(data []byte) error {
 					break
 				}
 			}
-			postIndex := iNdEx + msglen
 			if msglen < 0 {
 				return ErrInvalidLengthReplication
 			}
+			postIndex := iNdEx + msglen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			if m.VerifierSigned == nil {
-				m.VerifierSigned = &SignedEpochHead{}
-			}
-			if err := m.VerifierSigned.Unmarshal(data[iNdEx:postIndex]); err != nil {
+			v := &SignedEpochHead{}
+			if err := v.Unmarshal(data[iNdEx:postIndex]); err != nil {
 				return err
 			}
+			m.Type = &KeyserverStep_VerifierSigned{v}
 			iNdEx = postIndex
 		default:
-			var sizeOfWire int
-			for {
-				sizeOfWire++
-				wire >>= 7
-				if wire == 0 {
-					break
-				}
-			}
-			iNdEx -= sizeOfWire
+			iNdEx = preIndex
 			skippy, err := skipReplication(data[iNdEx:])
 			if err != nil {
 				return err
@@ -758,14 +1201,21 @@ func (m *KeyserverStep) Unmarshal(data []byte) error {
 		}
 	}
 
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
 	return nil
 }
 func (m *EpochDelimiter) Unmarshal(data []byte) error {
 	l := len(data)
 	iNdEx := 0
 	for iNdEx < l {
+		preIndex := iNdEx
 		var wire uint64
 		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowReplication
+			}
 			if iNdEx >= l {
 				return io.ErrUnexpectedEOF
 			}
@@ -778,6 +1228,12 @@ func (m *EpochDelimiter) Unmarshal(data []byte) error {
 		}
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: EpochDelimiter: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: EpochDelimiter: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
 		switch fieldNum {
 		case 1:
 			if wireType != 0 {
@@ -785,6 +1241,9 @@ func (m *EpochDelimiter) Unmarshal(data []byte) error {
 			}
 			m.EpochNumber = 0
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowReplication
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -801,6 +1260,9 @@ func (m *EpochDelimiter) Unmarshal(data []byte) error {
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowReplication
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -811,10 +1273,10 @@ func (m *EpochDelimiter) Unmarshal(data []byte) error {
 					break
 				}
 			}
-			postIndex := iNdEx + msglen
 			if msglen < 0 {
 				return ErrInvalidLengthReplication
 			}
+			postIndex := iNdEx + msglen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -823,15 +1285,7 @@ func (m *EpochDelimiter) Unmarshal(data []byte) error {
 			}
 			iNdEx = postIndex
 		default:
-			var sizeOfWire int
-			for {
-				sizeOfWire++
-				wire >>= 7
-				if wire == 0 {
-					break
-				}
-			}
-			iNdEx -= sizeOfWire
+			iNdEx = preIndex
 			skippy, err := skipReplication(data[iNdEx:])
 			if err != nil {
 				return err
@@ -846,6 +1300,9 @@ func (m *EpochDelimiter) Unmarshal(data []byte) error {
 		}
 	}
 
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
 	return nil
 }
 func skipReplication(data []byte) (n int, err error) {
@@ -854,6 +1311,9 @@ func skipReplication(data []byte) (n int, err error) {
 	for iNdEx < l {
 		var wire uint64
 		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return 0, ErrIntOverflowReplication
+			}
 			if iNdEx >= l {
 				return 0, io.ErrUnexpectedEOF
 			}
@@ -867,7 +1327,10 @@ func skipReplication(data []byte) (n int, err error) {
 		wireType := int(wire & 0x7)
 		switch wireType {
 		case 0:
-			for {
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return 0, ErrIntOverflowReplication
+				}
 				if iNdEx >= l {
 					return 0, io.ErrUnexpectedEOF
 				}
@@ -883,6 +1346,9 @@ func skipReplication(data []byte) (n int, err error) {
 		case 2:
 			var length int
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return 0, ErrIntOverflowReplication
+				}
 				if iNdEx >= l {
 					return 0, io.ErrUnexpectedEOF
 				}
@@ -903,6 +1369,9 @@ func skipReplication(data []byte) (n int, err error) {
 				var innerWire uint64
 				var start int = iNdEx
 				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return 0, ErrIntOverflowReplication
+					}
 					if iNdEx >= l {
 						return 0, io.ErrUnexpectedEOF
 					}
@@ -938,4 +1407,5 @@ func skipReplication(data []byte) (n int, err error) {
 
 var (
 	ErrInvalidLengthReplication = fmt.Errorf("proto: negative length found during unmarshaling")
+	ErrIntOverflowReplication   = fmt.Errorf("proto: integer overflow")
 )

@@ -4,9 +4,12 @@
 
 package proto
 
+import proto1 "github.com/andres-erbsen/protobuf/proto"
+import fmt "fmt"
+import math "math"
+
 // discarding unused import gogoproto "gogoproto"
 
-import fmt "fmt"
 import bytes "bytes"
 
 import strings "strings"
@@ -16,6 +19,11 @@ import strconv "strconv"
 import reflect "reflect"
 
 import io "io"
+
+// Reference imports to suppress errors if they are not otherwise used.
+var _ = proto1.Marshal
+var _ = fmt.Errorf
+var _ = math.Inf
 
 type Config struct {
 	Realms []*RealmConfig `protobuf:"bytes,1,rep,name=realms" json:"realms,omitempty"`
@@ -41,12 +49,12 @@ type RealmConfig struct {
 	Addr string `protobuf:"bytes,2,opt,name=addr,proto3" json:"addr,omitempty"`
 	// URL is the location of the secondary, HTTP-based interface to the
 	// keyserver. It is not necessarily on the same host as addr.
-	URL string `protobuf:"bytes,3,opt,proto3" json:"URL,omitempty"`
+	URL string `protobuf:"bytes,3,opt,name=URL,proto3" json:"URL,omitempty"`
 	// VRFPublic is the public key of the verifiable random function used for
 	// user id privacy. Here it is used to check that the anti-spam obfuscation
 	// layer is properly used as a one-to-one mapping between real and
 	// obfuscated usernames.
-	VRFPublic []byte `protobuf:"bytes,4,opt,proto3" json:"VRFPublic,omitempty"`
+	VRFPublic []byte `protobuf:"bytes,4,opt,name=VRFPublic,proto3" json:"VRFPublic,omitempty"`
 	// VerificationPolicy specifies the conditions on how a lookup must be
 	// verified for it to be accepted. Each verifier in VerificationPolicy MUST
 	// have a NoOlderThan entry.
@@ -56,7 +64,8 @@ type RealmConfig struct {
 	// epoch heads with IssueTime more than EpochTimeToLive in the past.
 	EpochTimeToLive Duration `protobuf:"bytes,6,opt,name=epoch_time_to_live" json:"epoch_time_to_live"`
 	// TreeNonce is the global nonce that is hashed into the Merkle tree nodes.
-	TreeNonce []byte `protobuf:"bytes,7,opt,name=tree_nonce,proto3" json:"tree_nonce,omitempty"`
+	TreeNonce []byte     `protobuf:"bytes,7,opt,name=tree_nonce,proto3" json:"tree_nonce,omitempty"`
+	ClientTLS *TLSConfig `protobuf:"bytes,8,opt,name=client_tls" json:"client_tls,omitempty"`
 }
 
 func (m *RealmConfig) Reset()      { *m = RealmConfig{} }
@@ -74,6 +83,13 @@ func (m *RealmConfig) GetEpochTimeToLive() Duration {
 		return m.EpochTimeToLive
 	}
 	return Duration{}
+}
+
+func (m *RealmConfig) GetClientTLS() *TLSConfig {
+	if m != nil {
+		return m.ClientTLS
+	}
+	return nil
 }
 
 func (this *Config) VerboseEqual(that interface{}) error {
@@ -182,6 +198,9 @@ func (this *RealmConfig) VerboseEqual(that interface{}) error {
 	if !bytes.Equal(this.TreeNonce, that1.TreeNonce) {
 		return fmt.Errorf("TreeNonce this(%v) Not Equal that(%v)", this.TreeNonce, that1.TreeNonce)
 	}
+	if !this.ClientTLS.Equal(that1.ClientTLS) {
+		return fmt.Errorf("ClientTLS this(%v) Not Equal that(%v)", this.ClientTLS, that1.ClientTLS)
+	}
 	return nil
 }
 func (this *RealmConfig) Equal(that interface{}) bool {
@@ -230,29 +249,43 @@ func (this *RealmConfig) Equal(that interface{}) bool {
 	if !bytes.Equal(this.TreeNonce, that1.TreeNonce) {
 		return false
 	}
+	if !this.ClientTLS.Equal(that1.ClientTLS) {
+		return false
+	}
 	return true
 }
 func (this *Config) GoString() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings.Join([]string{`&proto.Config{` +
-		`Realms:` + fmt.Sprintf("%#v", this.Realms) + `}`}, ", ")
-	return s
+	s := make([]string, 0, 5)
+	s = append(s, "&proto.Config{")
+	if this.Realms != nil {
+		s = append(s, "Realms: "+fmt.Sprintf("%#v", this.Realms)+",\n")
+	}
+	s = append(s, "}")
+	return strings.Join(s, "")
 }
 func (this *RealmConfig) GoString() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings.Join([]string{`&proto.RealmConfig{` +
-		`Domains:` + fmt.Sprintf("%#v", this.Domains),
-		`Addr:` + fmt.Sprintf("%#v", this.Addr),
-		`URL:` + fmt.Sprintf("%#v", this.URL),
-		`VRFPublic:` + fmt.Sprintf("%#v", this.VRFPublic),
-		`VerificationPolicy:` + fmt.Sprintf("%#v", this.VerificationPolicy),
-		`EpochTimeToLive:` + strings.Replace(this.EpochTimeToLive.GoString(), `&`, ``, 1),
-		`TreeNonce:` + fmt.Sprintf("%#v", this.TreeNonce) + `}`}, ", ")
-	return s
+	s := make([]string, 0, 12)
+	s = append(s, "&proto.RealmConfig{")
+	s = append(s, "Domains: "+fmt.Sprintf("%#v", this.Domains)+",\n")
+	s = append(s, "Addr: "+fmt.Sprintf("%#v", this.Addr)+",\n")
+	s = append(s, "URL: "+fmt.Sprintf("%#v", this.URL)+",\n")
+	s = append(s, "VRFPublic: "+fmt.Sprintf("%#v", this.VRFPublic)+",\n")
+	if this.VerificationPolicy != nil {
+		s = append(s, "VerificationPolicy: "+fmt.Sprintf("%#v", this.VerificationPolicy)+",\n")
+	}
+	s = append(s, "EpochTimeToLive: "+strings.Replace(this.EpochTimeToLive.GoString(), `&`, ``, 1)+",\n")
+	s = append(s, "TreeNonce: "+fmt.Sprintf("%#v", this.TreeNonce)+",\n")
+	if this.ClientTLS != nil {
+		s = append(s, "ClientTLS: "+fmt.Sprintf("%#v", this.ClientTLS)+",\n")
+	}
+	s = append(s, "}")
+	return strings.Join(s, "")
 }
 func valueToGoStringConfig(v interface{}, typ string) string {
 	rv := reflect.ValueOf(v)
@@ -385,6 +418,16 @@ func (m *RealmConfig) MarshalTo(data []byte) (int, error) {
 			i += copy(data[i:], m.TreeNonce)
 		}
 	}
+	if m.ClientTLS != nil {
+		data[i] = 0x42
+		i++
+		i = encodeVarintConfig(data, i, uint64(m.ClientTLS.Size()))
+		n3, err := m.ClientTLS.MarshalTo(data[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n3
+	}
 	return i, nil
 }
 
@@ -452,6 +495,9 @@ func NewPopulatedRealmConfig(r randyConfig, easy bool) *RealmConfig {
 	this.TreeNonce = make([]byte, v5)
 	for i := 0; i < v5; i++ {
 		this.TreeNonce[i] = byte(r.Intn(256))
+	}
+	if r.Intn(10) != 0 {
+		this.ClientTLS = NewPopulatedTLSConfig(r, easy)
 	}
 	if !easy && r.Intn(10) != 0 {
 	}
@@ -577,6 +623,10 @@ func (m *RealmConfig) Size() (n int) {
 			n += 1 + l + sovConfig(uint64(l))
 		}
 	}
+	if m.ClientTLS != nil {
+		l = m.ClientTLS.Size()
+		n += 1 + l + sovConfig(uint64(l))
+	}
 	return n
 }
 
@@ -615,6 +665,7 @@ func (this *RealmConfig) String() string {
 		`VerificationPolicy:` + strings.Replace(fmt.Sprintf("%v", this.VerificationPolicy), "AuthorizationPolicy", "AuthorizationPolicy", 1) + `,`,
 		`EpochTimeToLive:` + strings.Replace(strings.Replace(this.EpochTimeToLive.String(), "Duration", "Duration", 1), `&`, ``, 1) + `,`,
 		`TreeNonce:` + fmt.Sprintf("%v", this.TreeNonce) + `,`,
+		`ClientTLS:` + strings.Replace(fmt.Sprintf("%v", this.ClientTLS), "TLSConfig", "TLSConfig", 1) + `,`,
 		`}`,
 	}, "")
 	return s
@@ -631,8 +682,12 @@ func (m *Config) Unmarshal(data []byte) error {
 	l := len(data)
 	iNdEx := 0
 	for iNdEx < l {
+		preIndex := iNdEx
 		var wire uint64
 		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowConfig
+			}
 			if iNdEx >= l {
 				return io.ErrUnexpectedEOF
 			}
@@ -645,6 +700,12 @@ func (m *Config) Unmarshal(data []byte) error {
 		}
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: Config: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: Config: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
@@ -652,6 +713,9 @@ func (m *Config) Unmarshal(data []byte) error {
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowConfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -662,10 +726,10 @@ func (m *Config) Unmarshal(data []byte) error {
 					break
 				}
 			}
-			postIndex := iNdEx + msglen
 			if msglen < 0 {
 				return ErrInvalidLengthConfig
 			}
+			postIndex := iNdEx + msglen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -675,15 +739,7 @@ func (m *Config) Unmarshal(data []byte) error {
 			}
 			iNdEx = postIndex
 		default:
-			var sizeOfWire int
-			for {
-				sizeOfWire++
-				wire >>= 7
-				if wire == 0 {
-					break
-				}
-			}
-			iNdEx -= sizeOfWire
+			iNdEx = preIndex
 			skippy, err := skipConfig(data[iNdEx:])
 			if err != nil {
 				return err
@@ -698,14 +754,21 @@ func (m *Config) Unmarshal(data []byte) error {
 		}
 	}
 
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
 	return nil
 }
 func (m *RealmConfig) Unmarshal(data []byte) error {
 	l := len(data)
 	iNdEx := 0
 	for iNdEx < l {
+		preIndex := iNdEx
 		var wire uint64
 		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowConfig
+			}
 			if iNdEx >= l {
 				return io.ErrUnexpectedEOF
 			}
@@ -718,6 +781,12 @@ func (m *RealmConfig) Unmarshal(data []byte) error {
 		}
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: RealmConfig: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: RealmConfig: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
@@ -725,6 +794,9 @@ func (m *RealmConfig) Unmarshal(data []byte) error {
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowConfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -735,7 +807,11 @@ func (m *RealmConfig) Unmarshal(data []byte) error {
 					break
 				}
 			}
-			postIndex := iNdEx + int(stringLen)
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthConfig
+			}
+			postIndex := iNdEx + intStringLen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -747,6 +823,9 @@ func (m *RealmConfig) Unmarshal(data []byte) error {
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowConfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -757,7 +836,11 @@ func (m *RealmConfig) Unmarshal(data []byte) error {
 					break
 				}
 			}
-			postIndex := iNdEx + int(stringLen)
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthConfig
+			}
+			postIndex := iNdEx + intStringLen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -769,6 +852,9 @@ func (m *RealmConfig) Unmarshal(data []byte) error {
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowConfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -779,7 +865,11 @@ func (m *RealmConfig) Unmarshal(data []byte) error {
 					break
 				}
 			}
-			postIndex := iNdEx + int(stringLen)
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthConfig
+			}
+			postIndex := iNdEx + intStringLen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -791,6 +881,9 @@ func (m *RealmConfig) Unmarshal(data []byte) error {
 			}
 			var byteLen int
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowConfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -816,6 +909,9 @@ func (m *RealmConfig) Unmarshal(data []byte) error {
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowConfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -826,10 +922,10 @@ func (m *RealmConfig) Unmarshal(data []byte) error {
 					break
 				}
 			}
-			postIndex := iNdEx + msglen
 			if msglen < 0 {
 				return ErrInvalidLengthConfig
 			}
+			postIndex := iNdEx + msglen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -846,6 +942,9 @@ func (m *RealmConfig) Unmarshal(data []byte) error {
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowConfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -856,10 +955,10 @@ func (m *RealmConfig) Unmarshal(data []byte) error {
 					break
 				}
 			}
-			postIndex := iNdEx + msglen
 			if msglen < 0 {
 				return ErrInvalidLengthConfig
 			}
+			postIndex := iNdEx + msglen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -873,6 +972,9 @@ func (m *RealmConfig) Unmarshal(data []byte) error {
 			}
 			var byteLen int
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowConfig
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -892,16 +994,41 @@ func (m *RealmConfig) Unmarshal(data []byte) error {
 			}
 			m.TreeNonce = append([]byte{}, data[iNdEx:postIndex]...)
 			iNdEx = postIndex
-		default:
-			var sizeOfWire int
-			for {
-				sizeOfWire++
-				wire >>= 7
-				if wire == 0 {
+		case 8:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ClientTLS", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowConfig
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := data[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
 					break
 				}
 			}
-			iNdEx -= sizeOfWire
+			if msglen < 0 {
+				return ErrInvalidLengthConfig
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.ClientTLS == nil {
+				m.ClientTLS = &TLSConfig{}
+			}
+			if err := m.ClientTLS.Unmarshal(data[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
 			skippy, err := skipConfig(data[iNdEx:])
 			if err != nil {
 				return err
@@ -916,6 +1043,9 @@ func (m *RealmConfig) Unmarshal(data []byte) error {
 		}
 	}
 
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
 	return nil
 }
 func skipConfig(data []byte) (n int, err error) {
@@ -924,6 +1054,9 @@ func skipConfig(data []byte) (n int, err error) {
 	for iNdEx < l {
 		var wire uint64
 		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return 0, ErrIntOverflowConfig
+			}
 			if iNdEx >= l {
 				return 0, io.ErrUnexpectedEOF
 			}
@@ -937,7 +1070,10 @@ func skipConfig(data []byte) (n int, err error) {
 		wireType := int(wire & 0x7)
 		switch wireType {
 		case 0:
-			for {
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return 0, ErrIntOverflowConfig
+				}
 				if iNdEx >= l {
 					return 0, io.ErrUnexpectedEOF
 				}
@@ -953,6 +1089,9 @@ func skipConfig(data []byte) (n int, err error) {
 		case 2:
 			var length int
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return 0, ErrIntOverflowConfig
+				}
 				if iNdEx >= l {
 					return 0, io.ErrUnexpectedEOF
 				}
@@ -973,6 +1112,9 @@ func skipConfig(data []byte) (n int, err error) {
 				var innerWire uint64
 				var start int = iNdEx
 				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return 0, ErrIntOverflowConfig
+					}
 					if iNdEx >= l {
 						return 0, io.ErrUnexpectedEOF
 					}
@@ -1008,4 +1150,5 @@ func skipConfig(data []byte) (n int, err error) {
 
 var (
 	ErrInvalidLengthConfig = fmt.Errorf("proto: negative length found during unmarshaling")
+	ErrIntOverflowConfig   = fmt.Errorf("proto: integer overflow")
 )

@@ -24,21 +24,21 @@ import (
 
 	"github.com/yahoo/coname"
 	"github.com/yahoo/coname/keyserver/dkim"
+	"github.com/yahoo/coname/keyserver/replication"
 	"github.com/yahoo/coname/proto"
+	"github.com/yahoo/coname/vrf"
 	"golang.org/x/crypto/sha3"
 	"golang.org/x/net/context"
 )
 
-func (ks *Keyserver) verifyUpdateDeterministic(req *proto.UpdateRequest) error {
-	prevUpdate, err := ks.getUpdate(req.Update.NewEntry.Index, math.MaxUint64)
-	if err != nil {
-		log.Print(err)
-		return fmt.Errorf("internal error")
+func (ks *Keyserver) verifyUpdateDeterministic(prevUpdate *proto.UpdateRequest, req *proto.UpdateRequest) error {
+	if got, want := vrf.Compute([]byte(req.LookupParameters.UserId), ks.vrfSecret), req.Update.NewEntry.Index; !bytes.Equal(got, want) {
+		return fmt.Errorf("incorrect index for user %s: got %x, expected %x", req.LookupParameters.UserId, got, want)
 	}
-	if prevUpdate == nil {
-		return nil
+	var prevEntry *proto.Entry
+	if prevUpdate != nil {
+		prevEntry = &prevUpdate.Update.NewEntry.Entry
 	}
-	prevEntry := &prevUpdate.Update.NewEntry.Entry
 	if err := coname.VerifyUpdate(prevEntry, req.Update); err != nil {
 		return err
 	}
@@ -46,6 +46,9 @@ func (ks *Keyserver) verifyUpdateDeterministic(req *proto.UpdateRequest) error {
 }
 
 func (ks *Keyserver) verifyUpdateEdge(req *proto.UpdateRequest) error {
+	if len(req.Update.NewEntry.Index) != vrf.Size {
+		return fmt.Errorf("index '%x' has wrong length (expected %d)", req.Update.NewEntry.Index, vrf.Size)
+	}
 	prevUpdate, err := ks.getUpdate(req.Update.NewEntry.Index, math.MaxUint64)
 	if err != nil {
 		log.Print(err)
@@ -56,17 +59,17 @@ func (ks *Keyserver) verifyUpdateEdge(req *proto.UpdateRequest) error {
 			email, payload, err := dkim.CheckEmailProof(req.DKIMProof, ks.emailProofToAddr,
 				ks.emailProofSubjectPrefix, ks.lookupTXT, ks.clk.Now)
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to verify DKIM proof: %s", err)
 			}
-			if email != req.UserID {
-				return fmt.Errorf("requested user ID does not match the email proof: %q != %q", req.UserID, email)
+			if got, want := email, req.LookupParameters.UserId; got != want {
+				return fmt.Errorf("requested user ID does not match the email proof: %q != %q", got, want)
 			}
-			lastAtIndex := strings.LastIndex(req.UserID, "@")
+			lastAtIndex := strings.LastIndex(req.LookupParameters.UserId, "@")
 			if lastAtIndex == -1 {
-				return fmt.Errorf("requested user id is not a valid email address: %q", req.UserID)
+				return fmt.Errorf("requested user id is not a valid email address: %q", req.LookupParameters.UserId)
 			}
-			if _, ok := ks.emailProofAllowedDomains[req.UserID[:lastAtIndex]]; !ok {
-				return fmt.Errorf("domain not in registration whitelist: %q", req.UserID[:lastAtIndex])
+			if _, ok := ks.emailProofAllowedDomains[req.LookupParameters.UserId[lastAtIndex+1:]]; !ok {
+				return fmt.Errorf("domain not in registration whitelist: %q", req.LookupParameters.UserId[lastAtIndex+1:])
 			}
 			entryHash, err := base64.StdEncoding.DecodeString(payload)
 			if err != nil {
@@ -75,17 +78,12 @@ func (ks *Keyserver) verifyUpdateEdge(req *proto.UpdateRequest) error {
 			var entryHashProposed [32]byte
 			sha3.ShakeSum256(entryHashProposed[:], req.Update.NewEntry.Encoding)
 			if !bytes.Equal(entryHashProposed[:], entryHash[:]) {
-				return fmt.Errorf("email proof does not match requested entry")
+				return fmt.Errorf("email proof does not match requested entry: %s vs %s (%x)", base64.StdEncoding.EncodeToString(entryHashProposed[:]), payload, req.Update.NewEntry.Encoding)
 			}
 		}
-		return nil
 	}
 
-	prevEntry := &prevUpdate.Update.NewEntry.Entry
-	if err := coname.VerifyUpdate(prevEntry, req.Update); err != nil {
-		return err
-	}
-	return nil
+	return ks.verifyUpdateDeterministic(prevUpdate, req)
 }
 
 type updateOutput struct {
@@ -102,10 +100,10 @@ func (ks *Keyserver) Update(ctx context.Context, req *proto.UpdateRequest) (*pro
 
 	uid := genUID()
 	ch := ks.wr.Wait(uid)
-	ks.log.Propose(ctx, proto.MustMarshal(&proto.KeyserverStep{
+	ks.log.Propose(ctx, replication.LogEntry{Data: proto.MustMarshal(&proto.KeyserverStep{
 		UID:    uid,
-		Update: req,
-	}))
+		Type: &proto.KeyserverStep_Update{Update: req},
+	})})
 	select {
 	case <-ctx.Done():
 		ks.wr.Notify(uid, nil)

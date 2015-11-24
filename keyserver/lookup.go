@@ -89,31 +89,26 @@ func (ks *Keyserver) assembleLookupProof(req *proto.LookupRequest, lookupEpoch u
 	*proto.LookupProof, error,
 ) {
 	ret := &proto.LookupProof{UserId: req.UserId}
-	var index []byte
-	index, ret.IndexProof = vrf.Prove([]byte(req.UserId), ks.vrfSecret)
-	lookupEpoch, ratifications, err := ks.findLatestEpochSignedByQuorum(req.QuorumRequirement)
-	if err != nil {
-		return nil, err
-	}
+	ret.Index, ret.IndexProof = vrf.Prove([]byte(req.UserId), ks.vrfSecret)
 	ret.Ratifications = ratifications
 	tree, err := ks.merkletreeForEpoch(lookupEpoch)
 	if err != nil {
 		log.Printf("ERROR: couldn't get merkle tree for epoch %d: %s", lookupEpoch, err)
 		return nil, fmt.Errorf("internal error")
 	}
-	_, ret.TreeProof, err = tree.Lookup(index)
+	_, ret.TreeProof, err = tree.Lookup(ret.Index)
 	if err != nil {
-		log.Printf("ERROR: merkle tree lookup %x at or before epoch %d: %s", index, lookupEpoch, err)
+		log.Printf("ERROR: merkle tree lookup %x at or before epoch %d: %s", ret.Index, lookupEpoch, err)
 		return nil, fmt.Errorf("internal error")
 	}
-	urq, err := ks.getUpdate(index, lookupEpoch)
+	urq, err := ks.getUpdate(ret.Index, lookupEpoch)
 	if err != nil {
-		log.Printf("ERROR: getProfile of %x at or before epoch %d: %s", index, lookupEpoch, err)
+		log.Printf("ERROR: getProfile of %x at or before epoch %d: %s", ret.Index, lookupEpoch, err)
 		return nil, fmt.Errorf("internal error")
 	}
 	if urq != nil {
-		ret.Profile = urq.Profile
-		ret.Entry = urq.Update.NewEntry
+		ret.Profile = &urq.Profile
+		ret.Entry = &urq.Update.NewEntry
 	}
 	return ret, nil
 }
@@ -212,13 +207,16 @@ func (ks *Keyserver) lastSignedEpoch() uint64 {
 // If there is no such update, (nil, nil) is returned.
 func (ks *Keyserver) getUpdate(idx []byte, epoch uint64) (*proto.UpdateRequest, error) {
 	// idx: []&const
+	if len(idx) != vrf.Size {
+		log.Panicf("getUpdate: index %x has bad length", idx)
+	}
 	prefixIdxEpoch := make([]byte, 1+vrf.Size+8)
 	prefixIdxEpoch[0] = tableUpdateRequestsPrefix
 	copy(prefixIdxEpoch[1:], idx)
-	binary.BigEndian.PutUint64(prefixIdxEpoch[1+len(idx):], epoch+1)
+	binary.BigEndian.PutUint64(prefixIdxEpoch[1+len(idx):], epoch)
 	iter := ks.db.NewIterator(&kv.Range{
 		Start: prefixIdxEpoch[:1+len(idx)],
-		Limit: prefixIdxEpoch,
+		Limit: kv.IncrementKey(prefixIdxEpoch),
 	})
 	defer iter.Release()
 	if !iter.Last() {

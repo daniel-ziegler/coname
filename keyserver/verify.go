@@ -19,9 +19,14 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"strconv"
+	"strings"
 
-	"github.com/yahoo/coname/proto"
+	"google.golang.org/grpc/credentials"
+
 	"github.com/yahoo/coname/keyserver/kv"
+	"github.com/yahoo/coname/keyserver/replication"
+	"github.com/yahoo/coname/proto"
 	"golang.org/x/net/context"
 )
 
@@ -31,9 +36,9 @@ func (ks *Keyserver) VerifierStream(rq *proto.VerifierStreamRequest, stream prot
 	for start, limit := rq.Start, saturatingAdd(rq.Start, rq.PageSize); start < limit; {
 		// Try a kv.Range range scan first because it is the fastest. If this
 		// does not satisfy the entire request (because the future entries have
-		// not been generated yet), use ks.vmb to wait for new entries, falling
+		// not been generated yet), use ks.sb to wait for new entries, falling
 		// back to range scans when this thread fails to meet the timing
-		// constraints of ks.vmb. Both methods of accessing verifier log
+		// constraints of ks.sb. Both methods of accessing verifier log
 		// entries are surfaced here due to flow control and memory allocation
 		// constraints: we cannot allow allocation of an unbounded queue.
 		iter := ks.db.NewIterator(&kv.Range{Start: tableVerifierLog(start), Limit: tableVerifierLog(limit)})
@@ -68,22 +73,22 @@ func (ks *Keyserver) VerifierStream(rq *proto.VerifierStreamRequest, stream prot
 		}
 
 		// the requested entries are not in the db yet, so let's try to collect
-		// them from the vmb. ch=nil -> the desired log entry was sent after we
+		// them from the sb. ch=nil -> the desired log entry was sent after we
 		// did the db range scan but before we called Receive -> it's in db now.
-	vmbLoop:
-		for ch := ks.vmb.Receive(start, limit); ch != nil && start < limit; start++ {
+	sbLoop:
+		for ch := ks.sb.Receive(start, limit); ch != nil && start < limit; start++ {
 			select {
 			case <-stream.Context().Done():
 				return stream.Context().Err()
-			case vmbStep, ok := <-ch: // declares new variable, a &const
+			case sbStep, ok := <-ch: // declares new variable, a &const
 				if !ok {
-					// vmb closed the connection. This must be because this
-					// client was slow and vmb does not wait for laggards.
-					// This is okay though: if vmb does not have the step
+					// sb closed the connection. This must be because this
+					// client was slow and sb does not wait for laggards.
+					// This is okay though: if sb does not have the step
 					// anymore, the db must: let's get it from there.
-					break vmbLoop
+					break sbLoop
 				}
-				if err := stream.Send(vmbStep); err != nil {
+				if err := stream.Send(sbStep.(*proto.VerifierStep)); err != nil {
 					return err
 				}
 			}
@@ -92,15 +97,48 @@ func (ks *Keyserver) VerifierStream(rq *proto.VerifierStreamRequest, stream prot
 	return nil
 }
 
+const verifierCommonNamePrefix = "verifier" + " "
+
+func authenticateVerifier(ctx context.Context) (uint64, error) {
+	authInfo, ok := credentials.FromContext(ctx)
+	if !ok {
+		return 0, fmt.Errorf("failed to authenticate verifier: credentials.FromContext returned false")
+	}
+	certChains := authInfo.(credentials.TLSInfo).State.VerifiedChains
+	if len(certChains) != 1 {
+		return 0, fmt.Errorf("failed to authenticate verifier: expected exactly one valid certificate chain")
+	}
+	chain := certChains[0]
+	leaf := chain[0]
+	verifierIDString := leaf.Subject.CommonName
+	if !strings.HasPrefix(verifierIDString, verifierCommonNamePrefix) {
+		return 0, fmt.Errorf("failed to authenticate verifier: invalid common name: missing prefix %q (got %q)", verifierCommonNamePrefix, verifierIDString)
+	}
+	verifierID, err := strconv.ParseUint(verifierIDString[len(verifierCommonNamePrefix):], 16, 64)
+	if err != nil {
+		return 0, fmt.Errorf("failed to authenticate verifier: invalid common name: id not an integer: %s", err)
+	}
+	return verifierID, nil
+}
+
 // PushRatification implements the interfaceE2EKSVerification interface from proto/verifier.proto
 func (ks *Keyserver) PushRatification(ctx context.Context, r *proto.SignedEpochHead) (*proto.Nothing, error) {
-	// FIXME: verify the ratifier signature (tricky: where do we keep verifier pk-s?)
+	verifierCertID, err := authenticateVerifier(ctx)
+	if err != nil {
+		log.Printf("PushRatification: %s", err)
+		return nil, fmt.Errorf("PushRatification: %s", err)
+	}
+	for signerID := range r.Signatures {
+		if signerID != verifierCertID {
+			return nil, fmt.Errorf("PushRatification: not authorized: authenticated as %x but tried to write %x's signature", verifierCertID, signerID)
+		}
+	}
 	uid := genUID()
 	ch := ks.wr.Wait(uid)
-	ks.log.Propose(ctx, proto.MustMarshal(&proto.KeyserverStep{
+	ks.log.Propose(ctx, replication.LogEntry{Data: proto.MustMarshal(&proto.KeyserverStep{
 		UID:            uid,
-		VerifierSigned: r,
-	}))
+		Type: &proto.KeyserverStep_VerifierSigned{VerifierSigned: r},
+	})})
 	select {
 	case <-ctx.Done():
 		ks.wr.Notify(uid, nil)
@@ -122,7 +160,7 @@ func (ks *Keyserver) verifierLogAppend(m *proto.VerifierStep, rs *proto.ReplicaS
 	wb.Put(tableVerifierLog(rs.NextIndexVerifier), proto.MustMarshal(m))
 	rs.NextIndexVerifier++
 	return func() {
-		ks.vmb.Send(m)
+		ks.sb.Send(m)
 	}
 }
 

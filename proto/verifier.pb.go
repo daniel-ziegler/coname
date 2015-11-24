@@ -4,14 +4,11 @@
 
 package proto
 
-// discarding unused import gogoproto "gogoproto"
-
-import (
-	context "golang.org/x/net/context"
-	grpc "google.golang.org/grpc"
-)
-
+import proto1 "github.com/andres-erbsen/protobuf/proto"
 import fmt "fmt"
+import math "math"
+
+// discarding unused import gogoproto "gogoproto"
 
 import strings "strings"
 import github_com_andres_erbsen_protobuf_proto "github.com/andres-erbsen/protobuf/proto"
@@ -19,7 +16,17 @@ import sort "sort"
 import strconv "strconv"
 import reflect "reflect"
 
+import (
+	context "golang.org/x/net/context"
+	grpc "google.golang.org/grpc"
+)
+
 import io "io"
+
+// Reference imports to suppress errors if they are not otherwise used.
+var _ = proto1.Marshal
+var _ = fmt.Errorf
+var _ = math.Inf
 
 // UpdateRequest streams a specified number of committed updates or
 // ratifications. See replication.GetCommitted and replication.WaitCommitted.
@@ -38,25 +45,105 @@ func (*VerifierStreamRequest) ProtoMessage() {}
 // VerifierStep denotes the input to a single state transition of the verified
 // part of the keyserver state machine.
 type VerifierStep struct {
-	Update *SignedEntryUpdate `protobuf:"bytes,1,opt" json:"Update,omitempty"`
-	Epoch  *SignedEpochHead   `protobuf:"bytes,2,opt" json:"Epoch,omitempty"`
+	// Types that are valid to be assigned to Type:
+	//	*VerifierStep_Update
+	//	*VerifierStep_Epoch
+	Type isVerifierStep_Type `protobuf_oneof:"type"`
 }
 
 func (m *VerifierStep) Reset()      { *m = VerifierStep{} }
 func (*VerifierStep) ProtoMessage() {}
 
-func (m *VerifierStep) GetUpdate() *SignedEntryUpdate {
+type isVerifierStep_Type interface {
+	isVerifierStep_Type()
+	Equal(interface{}) bool
+	VerboseEqual(interface{}) error
+	MarshalTo([]byte) (int, error)
+	Size() int
+}
+
+type VerifierStep_Update struct {
+	Update *SignedEntryUpdate `protobuf:"bytes,1,opt,name=Update,oneof"`
+}
+type VerifierStep_Epoch struct {
+	Epoch *SignedEpochHead `protobuf:"bytes,2,opt,name=Epoch,oneof"`
+}
+
+func (*VerifierStep_Update) isVerifierStep_Type() {}
+func (*VerifierStep_Epoch) isVerifierStep_Type()  {}
+
+func (m *VerifierStep) GetType() isVerifierStep_Type {
 	if m != nil {
-		return m.Update
+		return m.Type
+	}
+	return nil
+}
+
+func (m *VerifierStep) GetUpdate() *SignedEntryUpdate {
+	if x, ok := m.GetType().(*VerifierStep_Update); ok {
+		return x.Update
 	}
 	return nil
 }
 
 func (m *VerifierStep) GetEpoch() *SignedEpochHead {
-	if m != nil {
-		return m.Epoch
+	if x, ok := m.GetType().(*VerifierStep_Epoch); ok {
+		return x.Epoch
 	}
 	return nil
+}
+
+// XXX_OneofFuncs is for the internal use of the proto package.
+func (*VerifierStep) XXX_OneofFuncs() (func(msg proto1.Message, b *proto1.Buffer) error, func(msg proto1.Message, tag, wire int, b *proto1.Buffer) (bool, error), []interface{}) {
+	return _VerifierStep_OneofMarshaler, _VerifierStep_OneofUnmarshaler, []interface{}{
+		(*VerifierStep_Update)(nil),
+		(*VerifierStep_Epoch)(nil),
+	}
+}
+
+func _VerifierStep_OneofMarshaler(msg proto1.Message, b *proto1.Buffer) error {
+	m := msg.(*VerifierStep)
+	// type
+	switch x := m.Type.(type) {
+	case *VerifierStep_Update:
+		_ = b.EncodeVarint(1<<3 | proto1.WireBytes)
+		if err := b.EncodeMessage(x.Update); err != nil {
+			return err
+		}
+	case *VerifierStep_Epoch:
+		_ = b.EncodeVarint(2<<3 | proto1.WireBytes)
+		if err := b.EncodeMessage(x.Epoch); err != nil {
+			return err
+		}
+	case nil:
+	default:
+		return fmt.Errorf("VerifierStep.Type has unexpected type %T", x)
+	}
+	return nil
+}
+
+func _VerifierStep_OneofUnmarshaler(msg proto1.Message, tag, wire int, b *proto1.Buffer) (bool, error) {
+	m := msg.(*VerifierStep)
+	switch tag {
+	case 1: // type.Update
+		if wire != proto1.WireBytes {
+			return true, proto1.ErrInternalBadWireType
+		}
+		msg := new(SignedEntryUpdate)
+		err := b.DecodeMessage(msg)
+		m.Type = &VerifierStep_Update{msg}
+		return true, err
+	case 2: // type.Epoch
+		if wire != proto1.WireBytes {
+			return true, proto1.ErrInternalBadWireType
+		}
+		msg := new(SignedEpochHead)
+		err := b.DecodeMessage(msg)
+		m.Type = &VerifierStep_Epoch{msg}
+		return true, err
+	default:
+		return false, nil
+	}
 }
 
 type Nothing struct {
@@ -64,6 +151,337 @@ type Nothing struct {
 
 func (m *Nothing) Reset()      { *m = Nothing{} }
 func (*Nothing) ProtoMessage() {}
+
+func (this *VerifierStreamRequest) VerboseEqual(that interface{}) error {
+	if that == nil {
+		if this == nil {
+			return nil
+		}
+		return fmt.Errorf("that == nil && this != nil")
+	}
+
+	that1, ok := that.(*VerifierStreamRequest)
+	if !ok {
+		return fmt.Errorf("that is not of type *VerifierStreamRequest")
+	}
+	if that1 == nil {
+		if this == nil {
+			return nil
+		}
+		return fmt.Errorf("that is type *VerifierStreamRequest but is nil && this != nil")
+	} else if this == nil {
+		return fmt.Errorf("that is type *VerifierStreamRequestbut is not nil && this == nil")
+	}
+	if this.Start != that1.Start {
+		return fmt.Errorf("Start this(%v) Not Equal that(%v)", this.Start, that1.Start)
+	}
+	if this.PageSize != that1.PageSize {
+		return fmt.Errorf("PageSize this(%v) Not Equal that(%v)", this.PageSize, that1.PageSize)
+	}
+	return nil
+}
+func (this *VerifierStreamRequest) Equal(that interface{}) bool {
+	if that == nil {
+		if this == nil {
+			return true
+		}
+		return false
+	}
+
+	that1, ok := that.(*VerifierStreamRequest)
+	if !ok {
+		return false
+	}
+	if that1 == nil {
+		if this == nil {
+			return true
+		}
+		return false
+	} else if this == nil {
+		return false
+	}
+	if this.Start != that1.Start {
+		return false
+	}
+	if this.PageSize != that1.PageSize {
+		return false
+	}
+	return true
+}
+func (this *VerifierStep) VerboseEqual(that interface{}) error {
+	if that == nil {
+		if this == nil {
+			return nil
+		}
+		return fmt.Errorf("that == nil && this != nil")
+	}
+
+	that1, ok := that.(*VerifierStep)
+	if !ok {
+		return fmt.Errorf("that is not of type *VerifierStep")
+	}
+	if that1 == nil {
+		if this == nil {
+			return nil
+		}
+		return fmt.Errorf("that is type *VerifierStep but is nil && this != nil")
+	} else if this == nil {
+		return fmt.Errorf("that is type *VerifierStepbut is not nil && this == nil")
+	}
+	if that1.Type == nil {
+		if this.Type != nil {
+			return fmt.Errorf("this.Type != nil && that1.Type == nil")
+		}
+	} else if this.Type == nil {
+		return fmt.Errorf("this.Type == nil && that1.Type != nil")
+	} else if err := this.Type.VerboseEqual(that1.Type); err != nil {
+		return err
+	}
+	return nil
+}
+func (this *VerifierStep_Update) VerboseEqual(that interface{}) error {
+	if that == nil {
+		if this == nil {
+			return nil
+		}
+		return fmt.Errorf("that == nil && this != nil")
+	}
+
+	that1, ok := that.(*VerifierStep_Update)
+	if !ok {
+		return fmt.Errorf("that is not of type *VerifierStep_Update")
+	}
+	if that1 == nil {
+		if this == nil {
+			return nil
+		}
+		return fmt.Errorf("that is type *VerifierStep_Update but is nil && this != nil")
+	} else if this == nil {
+		return fmt.Errorf("that is type *VerifierStep_Updatebut is not nil && this == nil")
+	}
+	if !this.Update.Equal(that1.Update) {
+		return fmt.Errorf("Update this(%v) Not Equal that(%v)", this.Update, that1.Update)
+	}
+	return nil
+}
+func (this *VerifierStep_Epoch) VerboseEqual(that interface{}) error {
+	if that == nil {
+		if this == nil {
+			return nil
+		}
+		return fmt.Errorf("that == nil && this != nil")
+	}
+
+	that1, ok := that.(*VerifierStep_Epoch)
+	if !ok {
+		return fmt.Errorf("that is not of type *VerifierStep_Epoch")
+	}
+	if that1 == nil {
+		if this == nil {
+			return nil
+		}
+		return fmt.Errorf("that is type *VerifierStep_Epoch but is nil && this != nil")
+	} else if this == nil {
+		return fmt.Errorf("that is type *VerifierStep_Epochbut is not nil && this == nil")
+	}
+	if !this.Epoch.Equal(that1.Epoch) {
+		return fmt.Errorf("Epoch this(%v) Not Equal that(%v)", this.Epoch, that1.Epoch)
+	}
+	return nil
+}
+func (this *VerifierStep) Equal(that interface{}) bool {
+	if that == nil {
+		if this == nil {
+			return true
+		}
+		return false
+	}
+
+	that1, ok := that.(*VerifierStep)
+	if !ok {
+		return false
+	}
+	if that1 == nil {
+		if this == nil {
+			return true
+		}
+		return false
+	} else if this == nil {
+		return false
+	}
+	if that1.Type == nil {
+		if this.Type != nil {
+			return false
+		}
+	} else if this.Type == nil {
+		return false
+	} else if !this.Type.Equal(that1.Type) {
+		return false
+	}
+	return true
+}
+func (this *VerifierStep_Update) Equal(that interface{}) bool {
+	if that == nil {
+		if this == nil {
+			return true
+		}
+		return false
+	}
+
+	that1, ok := that.(*VerifierStep_Update)
+	if !ok {
+		return false
+	}
+	if that1 == nil {
+		if this == nil {
+			return true
+		}
+		return false
+	} else if this == nil {
+		return false
+	}
+	if !this.Update.Equal(that1.Update) {
+		return false
+	}
+	return true
+}
+func (this *VerifierStep_Epoch) Equal(that interface{}) bool {
+	if that == nil {
+		if this == nil {
+			return true
+		}
+		return false
+	}
+
+	that1, ok := that.(*VerifierStep_Epoch)
+	if !ok {
+		return false
+	}
+	if that1 == nil {
+		if this == nil {
+			return true
+		}
+		return false
+	} else if this == nil {
+		return false
+	}
+	if !this.Epoch.Equal(that1.Epoch) {
+		return false
+	}
+	return true
+}
+func (this *Nothing) VerboseEqual(that interface{}) error {
+	if that == nil {
+		if this == nil {
+			return nil
+		}
+		return fmt.Errorf("that == nil && this != nil")
+	}
+
+	that1, ok := that.(*Nothing)
+	if !ok {
+		return fmt.Errorf("that is not of type *Nothing")
+	}
+	if that1 == nil {
+		if this == nil {
+			return nil
+		}
+		return fmt.Errorf("that is type *Nothing but is nil && this != nil")
+	} else if this == nil {
+		return fmt.Errorf("that is type *Nothingbut is not nil && this == nil")
+	}
+	return nil
+}
+func (this *Nothing) Equal(that interface{}) bool {
+	if that == nil {
+		if this == nil {
+			return true
+		}
+		return false
+	}
+
+	that1, ok := that.(*Nothing)
+	if !ok {
+		return false
+	}
+	if that1 == nil {
+		if this == nil {
+			return true
+		}
+		return false
+	} else if this == nil {
+		return false
+	}
+	return true
+}
+func (this *VerifierStreamRequest) GoString() string {
+	if this == nil {
+		return "nil"
+	}
+	s := make([]string, 0, 6)
+	s = append(s, "&proto.VerifierStreamRequest{")
+	s = append(s, "Start: "+fmt.Sprintf("%#v", this.Start)+",\n")
+	s = append(s, "PageSize: "+fmt.Sprintf("%#v", this.PageSize)+",\n")
+	s = append(s, "}")
+	return strings.Join(s, "")
+}
+func (this *VerifierStep) GoString() string {
+	if this == nil {
+		return "nil"
+	}
+	s := make([]string, 0, 6)
+	s = append(s, "&proto.VerifierStep{")
+	if this.Type != nil {
+		s = append(s, "Type: "+fmt.Sprintf("%#v", this.Type)+",\n")
+	}
+	s = append(s, "}")
+	return strings.Join(s, "")
+}
+func (this *VerifierStep_Update) GoString() string {
+	if this == nil {
+		return "nil"
+	}
+	s := strings.Join([]string{`&proto.VerifierStep_Update{` +
+		`Update:` + fmt.Sprintf("%#v", this.Update) + `}`}, ", ")
+	return s
+}
+func (this *VerifierStep_Epoch) GoString() string {
+	if this == nil {
+		return "nil"
+	}
+	s := strings.Join([]string{`&proto.VerifierStep_Epoch{` +
+		`Epoch:` + fmt.Sprintf("%#v", this.Epoch) + `}`}, ", ")
+	return s
+}
+func valueToGoStringVerifier(v interface{}, typ string) string {
+	rv := reflect.ValueOf(v)
+	if rv.IsNil() {
+		return "nil"
+	}
+	pv := reflect.Indirect(rv).Interface()
+	return fmt.Sprintf("func(v %v) *%v { return &v } ( %#v )", typ, typ, pv)
+}
+func extensionToGoStringVerifier(e map[int32]github_com_andres_erbsen_protobuf_proto.Extension) string {
+	if e == nil {
+		return "nil"
+	}
+	s := "map[int32]proto.Extension{"
+	keys := make([]int, 0, len(e))
+	for k := range e {
+		keys = append(keys, int(k))
+	}
+	sort.Ints(keys)
+	ss := []string{}
+	for _, k := range keys {
+		ss = append(ss, strconv.Itoa(k)+": "+e[int32(k)].GoString())
+	}
+	s += strings.Join(ss, ",") + "}"
+	return s
+}
+
+// Reference imports to suppress errors if they are not otherwise used.
+var _ context.Context
+var _ grpc.ClientConn
 
 // Client API for E2EKSVerification service
 
@@ -179,9 +597,9 @@ func (x *e2EKSVerificationVerifierStreamServer) Send(m *VerifierStep) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func _E2EKSVerification_PushRatification_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
+func _E2EKSVerification_PushRatification_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
 	in := new(SignedEpochHead)
-	if err := codec.Unmarshal(buf, in); err != nil {
+	if err := dec(in); err != nil {
 		return nil, err
 	}
 	out, err := srv.(E2EKSVerificationServer).PushRatification(ctx, in)
@@ -209,205 +627,6 @@ var _E2EKSVerification_serviceDesc = grpc.ServiceDesc{
 	},
 }
 
-func (this *VerifierStreamRequest) VerboseEqual(that interface{}) error {
-	if that == nil {
-		if this == nil {
-			return nil
-		}
-		return fmt.Errorf("that == nil && this != nil")
-	}
-
-	that1, ok := that.(*VerifierStreamRequest)
-	if !ok {
-		return fmt.Errorf("that is not of type *VerifierStreamRequest")
-	}
-	if that1 == nil {
-		if this == nil {
-			return nil
-		}
-		return fmt.Errorf("that is type *VerifierStreamRequest but is nil && this != nil")
-	} else if this == nil {
-		return fmt.Errorf("that is type *VerifierStreamRequestbut is not nil && this == nil")
-	}
-	if this.Start != that1.Start {
-		return fmt.Errorf("Start this(%v) Not Equal that(%v)", this.Start, that1.Start)
-	}
-	if this.PageSize != that1.PageSize {
-		return fmt.Errorf("PageSize this(%v) Not Equal that(%v)", this.PageSize, that1.PageSize)
-	}
-	return nil
-}
-func (this *VerifierStreamRequest) Equal(that interface{}) bool {
-	if that == nil {
-		if this == nil {
-			return true
-		}
-		return false
-	}
-
-	that1, ok := that.(*VerifierStreamRequest)
-	if !ok {
-		return false
-	}
-	if that1 == nil {
-		if this == nil {
-			return true
-		}
-		return false
-	} else if this == nil {
-		return false
-	}
-	if this.Start != that1.Start {
-		return false
-	}
-	if this.PageSize != that1.PageSize {
-		return false
-	}
-	return true
-}
-func (this *VerifierStep) VerboseEqual(that interface{}) error {
-	if that == nil {
-		if this == nil {
-			return nil
-		}
-		return fmt.Errorf("that == nil && this != nil")
-	}
-
-	that1, ok := that.(*VerifierStep)
-	if !ok {
-		return fmt.Errorf("that is not of type *VerifierStep")
-	}
-	if that1 == nil {
-		if this == nil {
-			return nil
-		}
-		return fmt.Errorf("that is type *VerifierStep but is nil && this != nil")
-	} else if this == nil {
-		return fmt.Errorf("that is type *VerifierStepbut is not nil && this == nil")
-	}
-	if !this.Update.Equal(that1.Update) {
-		return fmt.Errorf("Update this(%v) Not Equal that(%v)", this.Update, that1.Update)
-	}
-	if !this.Epoch.Equal(that1.Epoch) {
-		return fmt.Errorf("Epoch this(%v) Not Equal that(%v)", this.Epoch, that1.Epoch)
-	}
-	return nil
-}
-func (this *VerifierStep) Equal(that interface{}) bool {
-	if that == nil {
-		if this == nil {
-			return true
-		}
-		return false
-	}
-
-	that1, ok := that.(*VerifierStep)
-	if !ok {
-		return false
-	}
-	if that1 == nil {
-		if this == nil {
-			return true
-		}
-		return false
-	} else if this == nil {
-		return false
-	}
-	if !this.Update.Equal(that1.Update) {
-		return false
-	}
-	if !this.Epoch.Equal(that1.Epoch) {
-		return false
-	}
-	return true
-}
-func (this *Nothing) VerboseEqual(that interface{}) error {
-	if that == nil {
-		if this == nil {
-			return nil
-		}
-		return fmt.Errorf("that == nil && this != nil")
-	}
-
-	that1, ok := that.(*Nothing)
-	if !ok {
-		return fmt.Errorf("that is not of type *Nothing")
-	}
-	if that1 == nil {
-		if this == nil {
-			return nil
-		}
-		return fmt.Errorf("that is type *Nothing but is nil && this != nil")
-	} else if this == nil {
-		return fmt.Errorf("that is type *Nothingbut is not nil && this == nil")
-	}
-	return nil
-}
-func (this *Nothing) Equal(that interface{}) bool {
-	if that == nil {
-		if this == nil {
-			return true
-		}
-		return false
-	}
-
-	that1, ok := that.(*Nothing)
-	if !ok {
-		return false
-	}
-	if that1 == nil {
-		if this == nil {
-			return true
-		}
-		return false
-	} else if this == nil {
-		return false
-	}
-	return true
-}
-func (this *VerifierStreamRequest) GoString() string {
-	if this == nil {
-		return "nil"
-	}
-	s := strings.Join([]string{`&proto.VerifierStreamRequest{` +
-		`Start:` + fmt.Sprintf("%#v", this.Start),
-		`PageSize:` + fmt.Sprintf("%#v", this.PageSize) + `}`}, ", ")
-	return s
-}
-func (this *VerifierStep) GoString() string {
-	if this == nil {
-		return "nil"
-	}
-	s := strings.Join([]string{`&proto.VerifierStep{` +
-		`Update:` + fmt.Sprintf("%#v", this.Update),
-		`Epoch:` + fmt.Sprintf("%#v", this.Epoch) + `}`}, ", ")
-	return s
-}
-func valueToGoStringVerifier(v interface{}, typ string) string {
-	rv := reflect.ValueOf(v)
-	if rv.IsNil() {
-		return "nil"
-	}
-	pv := reflect.Indirect(rv).Interface()
-	return fmt.Sprintf("func(v %v) *%v { return &v } ( %#v )", typ, typ, pv)
-}
-func extensionToGoStringVerifier(e map[int32]github_com_andres_erbsen_protobuf_proto.Extension) string {
-	if e == nil {
-		return "nil"
-	}
-	s := "map[int32]proto.Extension{"
-	keys := make([]int, 0, len(e))
-	for k := range e {
-		keys = append(keys, int(k))
-	}
-	sort.Ints(keys)
-	ss := []string{}
-	for _, k := range keys {
-		ss = append(ss, strconv.Itoa(k)+": "+e[int32(k)].GoString())
-	}
-	s += strings.Join(ss, ",") + "}"
-	return s
-}
 func (m *VerifierStreamRequest) Marshal() (data []byte, err error) {
 	size := m.Size()
 	data = make([]byte, size)
@@ -451,21 +670,23 @@ func (m *VerifierStep) MarshalTo(data []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
+	if m.Type != nil {
+		nn1, err := m.Type.MarshalTo(data[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += nn1
+	}
+	return i, nil
+}
+
+func (m *VerifierStep_Update) MarshalTo(data []byte) (int, error) {
+	i := 0
 	if m.Update != nil {
 		data[i] = 0xa
 		i++
 		i = encodeVarintVerifier(data, i, uint64(m.Update.Size()))
-		n1, err := m.Update.MarshalTo(data[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n1
-	}
-	if m.Epoch != nil {
-		data[i] = 0x12
-		i++
-		i = encodeVarintVerifier(data, i, uint64(m.Epoch.Size()))
-		n2, err := m.Epoch.MarshalTo(data[i:])
+		n2, err := m.Update.MarshalTo(data[i:])
 		if err != nil {
 			return 0, err
 		}
@@ -473,7 +694,20 @@ func (m *VerifierStep) MarshalTo(data []byte) (int, error) {
 	}
 	return i, nil
 }
-
+func (m *VerifierStep_Epoch) MarshalTo(data []byte) (int, error) {
+	i := 0
+	if m.Epoch != nil {
+		data[i] = 0x12
+		i++
+		i = encodeVarintVerifier(data, i, uint64(m.Epoch.Size()))
+		n3, err := m.Epoch.MarshalTo(data[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n3
+	}
+	return i, nil
+}
 func (m *Nothing) Marshal() (data []byte, err error) {
 	size := m.Size()
 	data = make([]byte, size)
@@ -530,17 +764,28 @@ func NewPopulatedVerifierStreamRequest(r randyVerifier, easy bool) *VerifierStre
 
 func NewPopulatedVerifierStep(r randyVerifier, easy bool) *VerifierStep {
 	this := &VerifierStep{}
-	if r.Intn(10) != 0 {
-		this.Update = NewPopulatedSignedEntryUpdate(r, easy)
-	}
-	if r.Intn(10) != 0 {
-		this.Epoch = NewPopulatedSignedEpochHead(r, easy)
+	oneofNumber_Type := []int32{1, 2}[r.Intn(2)]
+	switch oneofNumber_Type {
+	case 1:
+		this.Type = NewPopulatedVerifierStep_Update(r, easy)
+	case 2:
+		this.Type = NewPopulatedVerifierStep_Epoch(r, easy)
 	}
 	if !easy && r.Intn(10) != 0 {
 	}
 	return this
 }
 
+func NewPopulatedVerifierStep_Update(r randyVerifier, easy bool) *VerifierStep_Update {
+	this := &VerifierStep_Update{}
+	this.Update = NewPopulatedSignedEntryUpdate(r, easy)
+	return this
+}
+func NewPopulatedVerifierStep_Epoch(r randyVerifier, easy bool) *VerifierStep_Epoch {
+	this := &VerifierStep_Epoch{}
+	this.Epoch = NewPopulatedSignedEpochHead(r, easy)
+	return this
+}
 func NewPopulatedNothing(r randyVerifier, easy bool) *Nothing {
 	this := &Nothing{}
 	if !easy && r.Intn(10) != 0 {
@@ -635,17 +880,30 @@ func (m *VerifierStreamRequest) Size() (n int) {
 func (m *VerifierStep) Size() (n int) {
 	var l int
 	_ = l
+	if m.Type != nil {
+		n += m.Type.Size()
+	}
+	return n
+}
+
+func (m *VerifierStep_Update) Size() (n int) {
+	var l int
+	_ = l
 	if m.Update != nil {
 		l = m.Update.Size()
 		n += 1 + l + sovVerifier(uint64(l))
 	}
+	return n
+}
+func (m *VerifierStep_Epoch) Size() (n int) {
+	var l int
+	_ = l
 	if m.Epoch != nil {
 		l = m.Epoch.Size()
 		n += 1 + l + sovVerifier(uint64(l))
 	}
 	return n
 }
-
 func (m *Nothing) Size() (n int) {
 	var l int
 	_ = l
@@ -681,7 +939,26 @@ func (this *VerifierStep) String() string {
 		return "nil"
 	}
 	s := strings.Join([]string{`&VerifierStep{`,
+		`Type:` + fmt.Sprintf("%v", this.Type) + `,`,
+		`}`,
+	}, "")
+	return s
+}
+func (this *VerifierStep_Update) String() string {
+	if this == nil {
+		return "nil"
+	}
+	s := strings.Join([]string{`&VerifierStep_Update{`,
 		`Update:` + strings.Replace(fmt.Sprintf("%v", this.Update), "SignedEntryUpdate", "SignedEntryUpdate", 1) + `,`,
+		`}`,
+	}, "")
+	return s
+}
+func (this *VerifierStep_Epoch) String() string {
+	if this == nil {
+		return "nil"
+	}
+	s := strings.Join([]string{`&VerifierStep_Epoch{`,
 		`Epoch:` + strings.Replace(fmt.Sprintf("%v", this.Epoch), "SignedEpochHead", "SignedEpochHead", 1) + `,`,
 		`}`,
 	}, "")
@@ -708,8 +985,12 @@ func (m *VerifierStreamRequest) Unmarshal(data []byte) error {
 	l := len(data)
 	iNdEx := 0
 	for iNdEx < l {
+		preIndex := iNdEx
 		var wire uint64
 		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowVerifier
+			}
 			if iNdEx >= l {
 				return io.ErrUnexpectedEOF
 			}
@@ -722,6 +1003,12 @@ func (m *VerifierStreamRequest) Unmarshal(data []byte) error {
 		}
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: VerifierStreamRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: VerifierStreamRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
 		switch fieldNum {
 		case 1:
 			if wireType != 0 {
@@ -729,6 +1016,9 @@ func (m *VerifierStreamRequest) Unmarshal(data []byte) error {
 			}
 			m.Start = 0
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowVerifier
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -745,6 +1035,9 @@ func (m *VerifierStreamRequest) Unmarshal(data []byte) error {
 			}
 			m.PageSize = 0
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowVerifier
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -756,15 +1049,7 @@ func (m *VerifierStreamRequest) Unmarshal(data []byte) error {
 				}
 			}
 		default:
-			var sizeOfWire int
-			for {
-				sizeOfWire++
-				wire >>= 7
-				if wire == 0 {
-					break
-				}
-			}
-			iNdEx -= sizeOfWire
+			iNdEx = preIndex
 			skippy, err := skipVerifier(data[iNdEx:])
 			if err != nil {
 				return err
@@ -779,14 +1064,21 @@ func (m *VerifierStreamRequest) Unmarshal(data []byte) error {
 		}
 	}
 
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
 	return nil
 }
 func (m *VerifierStep) Unmarshal(data []byte) error {
 	l := len(data)
 	iNdEx := 0
 	for iNdEx < l {
+		preIndex := iNdEx
 		var wire uint64
 		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowVerifier
+			}
 			if iNdEx >= l {
 				return io.ErrUnexpectedEOF
 			}
@@ -799,6 +1091,12 @@ func (m *VerifierStep) Unmarshal(data []byte) error {
 		}
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: VerifierStep: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: VerifierStep: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
@@ -806,6 +1104,9 @@ func (m *VerifierStep) Unmarshal(data []byte) error {
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowVerifier
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -816,19 +1117,18 @@ func (m *VerifierStep) Unmarshal(data []byte) error {
 					break
 				}
 			}
-			postIndex := iNdEx + msglen
 			if msglen < 0 {
 				return ErrInvalidLengthVerifier
 			}
+			postIndex := iNdEx + msglen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			if m.Update == nil {
-				m.Update = &SignedEntryUpdate{}
-			}
-			if err := m.Update.Unmarshal(data[iNdEx:postIndex]); err != nil {
+			v := &SignedEntryUpdate{}
+			if err := v.Unmarshal(data[iNdEx:postIndex]); err != nil {
 				return err
 			}
+			m.Type = &VerifierStep_Update{v}
 			iNdEx = postIndex
 		case 2:
 			if wireType != 2 {
@@ -836,6 +1136,9 @@ func (m *VerifierStep) Unmarshal(data []byte) error {
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowVerifier
+				}
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
@@ -846,30 +1149,21 @@ func (m *VerifierStep) Unmarshal(data []byte) error {
 					break
 				}
 			}
-			postIndex := iNdEx + msglen
 			if msglen < 0 {
 				return ErrInvalidLengthVerifier
 			}
+			postIndex := iNdEx + msglen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			if m.Epoch == nil {
-				m.Epoch = &SignedEpochHead{}
-			}
-			if err := m.Epoch.Unmarshal(data[iNdEx:postIndex]); err != nil {
+			v := &SignedEpochHead{}
+			if err := v.Unmarshal(data[iNdEx:postIndex]); err != nil {
 				return err
 			}
+			m.Type = &VerifierStep_Epoch{v}
 			iNdEx = postIndex
 		default:
-			var sizeOfWire int
-			for {
-				sizeOfWire++
-				wire >>= 7
-				if wire == 0 {
-					break
-				}
-			}
-			iNdEx -= sizeOfWire
+			iNdEx = preIndex
 			skippy, err := skipVerifier(data[iNdEx:])
 			if err != nil {
 				return err
@@ -884,14 +1178,21 @@ func (m *VerifierStep) Unmarshal(data []byte) error {
 		}
 	}
 
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
 	return nil
 }
 func (m *Nothing) Unmarshal(data []byte) error {
 	l := len(data)
 	iNdEx := 0
 	for iNdEx < l {
+		preIndex := iNdEx
 		var wire uint64
 		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowVerifier
+			}
 			if iNdEx >= l {
 				return io.ErrUnexpectedEOF
 			}
@@ -903,17 +1204,16 @@ func (m *Nothing) Unmarshal(data []byte) error {
 			}
 		}
 		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: Nothing: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: Nothing: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
 		switch fieldNum {
 		default:
-			var sizeOfWire int
-			for {
-				sizeOfWire++
-				wire >>= 7
-				if wire == 0 {
-					break
-				}
-			}
-			iNdEx -= sizeOfWire
+			iNdEx = preIndex
 			skippy, err := skipVerifier(data[iNdEx:])
 			if err != nil {
 				return err
@@ -928,6 +1228,9 @@ func (m *Nothing) Unmarshal(data []byte) error {
 		}
 	}
 
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
 	return nil
 }
 func skipVerifier(data []byte) (n int, err error) {
@@ -936,6 +1239,9 @@ func skipVerifier(data []byte) (n int, err error) {
 	for iNdEx < l {
 		var wire uint64
 		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return 0, ErrIntOverflowVerifier
+			}
 			if iNdEx >= l {
 				return 0, io.ErrUnexpectedEOF
 			}
@@ -949,7 +1255,10 @@ func skipVerifier(data []byte) (n int, err error) {
 		wireType := int(wire & 0x7)
 		switch wireType {
 		case 0:
-			for {
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return 0, ErrIntOverflowVerifier
+				}
 				if iNdEx >= l {
 					return 0, io.ErrUnexpectedEOF
 				}
@@ -965,6 +1274,9 @@ func skipVerifier(data []byte) (n int, err error) {
 		case 2:
 			var length int
 			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return 0, ErrIntOverflowVerifier
+				}
 				if iNdEx >= l {
 					return 0, io.ErrUnexpectedEOF
 				}
@@ -985,6 +1297,9 @@ func skipVerifier(data []byte) (n int, err error) {
 				var innerWire uint64
 				var start int = iNdEx
 				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return 0, ErrIntOverflowVerifier
+					}
 					if iNdEx >= l {
 						return 0, io.ErrUnexpectedEOF
 					}
@@ -1020,4 +1335,5 @@ func skipVerifier(data []byte) (n int, err error) {
 
 var (
 	ErrInvalidLengthVerifier = fmt.Errorf("proto: negative length found during unmarshaling")
+	ErrIntOverflowVerifier   = fmt.Errorf("proto: integer overflow")
 )

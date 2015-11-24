@@ -18,6 +18,7 @@ import (
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/rsa"
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
@@ -109,8 +110,8 @@ func RunWithConfig(cfg *proto.ReplicaConfig) {
 	// this should be moved into server.go
 	ratificationPolicy := &proto.AuthorizationPolicy{
 		PublicKeys: make(map[uint64]*proto.PublicKey),
-		Quorum: &proto.QuorumExpr{
-			Threshold: uint32(majority(len(cfg.KeyserverConfig.InitialReplicas))),
+		PolicyType: &proto.AuthorizationPolicy_Quorum{&proto.QuorumExpr{
+			Threshold: uint32(majority(len(cfg.KeyserverConfig.InitialReplicas)))},
 		},
 	}
 	replicaIDs := []uint64{}
@@ -124,7 +125,7 @@ func RunWithConfig(cfg *proto.ReplicaConfig) {
 			ratificationPolicy.PublicKeys[pkid] = pk
 			replicaExpr.Candidates = append(replicaExpr.Candidates, pkid)
 		}
-		ratificationPolicy.Quorum.Subexpressions = append(ratificationPolicy.Quorum.Subexpressions, replicaExpr)
+		ratificationPolicy.PolicyType.(*proto.AuthorizationPolicy_Quorum).Quorum.Subexpressions = append(ratificationPolicy.PolicyType.(*proto.AuthorizationPolicy_Quorum).Quorum.Subexpressions, replicaExpr)
 	}
 
 	leveldb, err := leveldb.OpenFile(cfg.LevelDBPath, nil)
@@ -153,7 +154,7 @@ func RunWithConfig(cfg *proto.ReplicaConfig) {
 		// TODO use current, not initial, config
 		for _, replica := range cfg.KeyserverConfig.InitialReplicas {
 			if replica.ID == id {
-				conn, err := grpc.Dial(replica.RaftAddr, grpc.WithTransportCredentials(raftCreds))
+				conn, err := grpc.Dial(replica.RaftAddr, grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{RootCAs: raftTLS.RootCAs})))
 				if err != nil {
 					log.Panicf("Raft GRPC dial failed: %s", err)
 				}

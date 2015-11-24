@@ -68,7 +68,7 @@ func setupRaftLogCluster(t *testing.T, nReplicas, nStandbys int) (ret []replicat
 	nw = nettestutil.New(n)
 	lookupDialerFrom := func(src int) func(uint64) proto.RaftClient {
 		return func(dstPlus1 uint64) proto.RaftClient {
-			cc, err := grpc.Dial(addrs[dstPlus1-1], grpc.WithDialer(
+			cc, err := grpc.Dial(addrs[dstPlus1-1], grpc.WithInsecure(), grpc.WithDialer(
 				func(addr string, timeout time.Duration) (net.Conn, error) {
 					nc, err := net.DialTimeout("tcp", addr, timeout)
 					return nw.Wrap(nc, src, int(dstPlus1-1)), err
@@ -180,8 +180,8 @@ func (am *appendMachine) run() {
 			return
 		case stepLogEntry := <-am.log.WaitCommitted():
 			switch {
-			case stepLogEntry != nil:
-				am.state = append(am.state, stepLogEntry...)
+			case stepLogEntry.Data != nil:
+				am.state = append(am.state, stepLogEntry.Data...)
 				am.nextIndexLog++
 				am.persist()
 			}
@@ -241,7 +241,7 @@ func TestAppendMachineEachProposeOneAndStop5(t *testing.T) {
 	replicas, _, _, teardown := setupAppendMachineCluster(t, 5, 0)
 	defer teardown()
 	for i, am := range replicas {
-		go am.log.Propose(context.Background(), []byte{byte(i)})
+		go am.log.Propose(context.Background(), replication.LogEntry{Data: []byte{byte(i)}})
 	}
 }
 
@@ -276,7 +276,7 @@ func checkMachinesConsistent(t *testing.T, ms []*appendMachine) {
 func syncTryPropose(am *appendMachine, clk *clock.Mock, prop []byte) {
 	s := make(chan struct{})
 	ctx, cancel := context.WithCancel(context.Background())
-	go func() { am.log.Propose(ctx, prop); close(s) }()
+	go func() { am.log.Propose(ctx, replication.LogEntry{Data: prop}); close(s) }()
 	for i := 0; i < 30; i++ {
 		select {
 		case <-s:
@@ -302,7 +302,7 @@ func testAppendMachineEachProposeAndWait(t *testing.T, replicas []*appendMachine
 				panic("slen mismatch")
 			}
 			remaining[i][s] = struct{}{}
-			go am.log.Propose(context.Background(), []byte(s))
+			go am.log.Propose(context.Background(), replication.LogEntry{Data: []byte(s)})
 		}
 	}
 
@@ -322,7 +322,6 @@ func testAppendMachineEachProposeAndWait(t *testing.T, replicas []*appendMachine
 			var j int
 			_, err := fmt.Sscanf(s[:3], "(%1d:", &j)
 			if err != nil {
-				println(fmt.Sprintf("%q", s))
 				panic(err)
 			}
 			delete(remaining[j-1], s)
@@ -422,7 +421,7 @@ func TestRecoverFromDisconnect3(t *testing.T) {
 	nw.Partition([]int{0}, []int{1}, []int{2})
 	for j := 0; j < 100; j++ {
 		i := rand.Intn(len(replicas))
-		go replicas[i].log.Propose(context.Background(), []byte(fmt.Sprintf("(%1d:%01d%03d)", i+1, 1, j)))
+		go replicas[i].log.Propose(context.Background(), replication.LogEntry{Data: []byte(fmt.Sprintf("(%1d:%01d%03d)", i+1, 1, j))})
 		clks[i].Add(tick)
 	}
 
@@ -467,7 +466,7 @@ func TestLots(t *testing.T) {
 			case <-time.After(time.Microsecond * time.Duration(1*1000*rand.Float64())):
 			}
 			i := rand.Intn(len(replicas))
-			go replicas[i].log.Propose(context.Background(), []byte(fmt.Sprintf("(%1d:%04d)", i+1, j)))
+			go replicas[i].log.Propose(context.Background(), replication.LogEntry{Data: []byte(fmt.Sprintf("(%1d:%04d)", i+1, j))})
 		}
 	}()
 
@@ -550,13 +549,13 @@ func TestAppendMachineEachPropose1AndWait3Standby1(t *testing.T) {
 	testAppendMachineEachProposeAndWait(t, replicas, clks, 0, 1, 1)
 }
 
-func TestConfigurationChange3Add1Manually(t *testing.T) {
+func TestConfigurationChange3Add1Detailed(t *testing.T) {
 	replicas, clks, _, teardown := setupAppendMachineCluster(t, 3, 1)
 	defer teardown()
 
-	go replicas[0].log.Propose(context.Background(), []byte("A"))
-	go replicas[1].log.Propose(context.Background(), []byte("B"))
-	go replicas[2].log.Propose(context.Background(), []byte("C"))
+	go replicas[0].log.Propose(context.Background(), replication.LogEntry{Data: []byte("A")})
+	go replicas[1].log.Propose(context.Background(), replication.LogEntry{Data: []byte("B")})
+	go replicas[2].log.Propose(context.Background(), replication.LogEntry{Data: []byte("C")})
 
 	for i := 0; i < 3; i++ {
 		for len(replicas[i].Get()) < 3 {
@@ -567,7 +566,7 @@ func TestConfigurationChange3Add1Manually(t *testing.T) {
 	}
 
 	for i := 0; i < 4; i++ {
-		replicas[i].log.AddReplica(4)
+		replicas[i].log.ApplyConfChange(&replication.ConfChange{NodeID: 4, Operation: replication.ConfChangeAddNode})
 	}
 
 	for len(replicas[3].Get()) < 3 {
@@ -578,7 +577,7 @@ func TestConfigurationChange3Add1Manually(t *testing.T) {
 
 	for i := 0; i < 4; i++ {
 		for len(replicas[i].Get()) < 4 {
-			replicas[3].log.Propose(context.Background(), []byte("D"))
+			replicas[3].log.Propose(context.Background(), replication.LogEntry{Data: []byte("D")})
 			for j := 0; j < 4; j++ {
 				clks[j].Add(tick)
 			}
@@ -590,45 +589,4 @@ func TestConfigurationChange3Add1Manually(t *testing.T) {
 		states[i] = replicas[i].Get()
 	}
 	checkReplicasConsistent(t, states)
-}
-
-func TestConfigurationChange4Drop1Manually(t *testing.T) {
-	replicas, clks, _, teardown := setupAppendMachineCluster(t, 4, 0)
-	defer teardown()
-
-	testAppendMachineEachProposeAndWait(t, replicas, clks, 0, 1, 0)
-
-	for i := 0; i < 4; i++ {
-		replicas[i].log.DropReplica(4)
-	}
-
-	testAppendMachineEachProposeAndWait(t, replicas[:3], clks[:3], 1, 1, 0)
-
-	states := make(map[int][]byte)
-	for i := 0; i < 4; i++ { // even the removed replica must be consistent (just behind)
-		states[i] = replicas[i].Get()
-	}
-	checkReplicasConsistent(t, states)
-}
-
-func TestConfigurationChange4Drop1Add1Manually(t *testing.T) {
-	replicas, clks, _, teardown := setupAppendMachineCluster(t, 4, 1)
-	defer teardown()
-
-	testAppendMachineEachProposeAndWait(t, replicas[:4], clks[:4], 0, 1, 0)
-	checkMachinesConsistent(t, replicas)
-
-	for i := 0; i < 4; i++ {
-		replicas[i].log.DropReplica(1)
-	}
-
-	testAppendMachineEachProposeAndWait(t, replicas[1:4], clks[1:4], 1, 1, 0)
-	checkMachinesConsistent(t, replicas)
-
-	for i := 1; i < 5; i++ {
-		replicas[i].log.AddReplica(5)
-	}
-
-	testAppendMachineEachProposeAndWait(t, replicas[1:], clks, 2, 1, 0)
-	checkMachinesConsistent(t, replicas)
 }
