@@ -77,25 +77,34 @@ type Keyserver struct {
 	minEpochInterval, maxEpochInterval, retryProposalInterval time.Duration
 
 	// epochProposer makes sure we try to advance epochs.
-	epochProposer *Proposer
-	// whether we should be advancing epochs is determined based on the
-	// following variables (sensitivity list wantEpochProposer) {
+	epochProposer            *Proposer
+	outstandingEpochProposal *proto.KeyserverStep
+	// whether we should be advancing the epoch (and to which epoch) is
+	// determined based on the following variables (sensitivity list
+	// wantEpochProposer) {
 	leaderHint bool
 
 	minEpochIntervalPassed, maxEpochIntervalPassed bool
 	minEpochIntervalTimer, maxEpochIntervalTimer   *clock.Timer
 	// rs.PendingUpdates
-	// rs.ThisReplicaNeedsToSignLastEpoch
+	// rs.LastEpochNeedsRatification
+	// rs.AcceptableClusterChanges
+	// rs.LastEpochDelimiter
+	// ks.serverAuthorized
 	// }
 
 	setOurAcceptableClusterChange chan []*proto.Replica
 	clusterChangeBarrier          chan struct{} // send a value when reached
 
 	// signatureProposer makes sure we try to sign epochs.
-	signatureProposer *Proposer
-	// whether our signature is needed is determined by this sensitivity list {
+	signatureProposer            *Proposer
+	outstandingSignatureProposal *proto.KeyserverStep
+	// whether our signature is needed and what we need to sign is determined by
+	// this sensitivity list {
+	// rs.LastEpochDelimiter
 	// rs.OurAcceptableClusterChange
 	// rs.ThisReplicaNeedsToSignLastEpoch
+	// tableEpochHeads(rs.LastEpochDelimiter.EpochNumber)
 	//}
 
 	merkletree *merkletree.MerkleTree
@@ -723,55 +732,64 @@ func (p *Proposer) run() {
 	}
 }
 
-// shouldEpoch returns true if this node should append an epoch delimiter to the
-// log.
-func (ks *Keyserver) wantEpochProposer() bool {
-	return !ks.rs.LastEpochNeedsRatification && ks.leaderHint &&
-		(ks.maxEpochIntervalPassed || ks.minEpochIntervalPassed && ks.rs.PendingUpdates)
+func (ks *Keyserver) desiredEpochProposal() *proto.KeyserverStep {
+	if ks.rs.LastEpochNeedsRatification {
+		// wait for the last epoch to be ratified
+		return nil
+	}
+	if !ks.leaderHint {
+		// as an optimization, aim for one epoch delimiter per epoch (not one per replica)
+		return nil
+	}
+	if !(ks.maxEpochIntervalPassed || (ks.minEpochIntervalPassed && ks.rs.PendingUpdates)) {
+		return nil
+	}
+
+	quorum := ks.serverAuthorized.PolicyType.(*proto.AuthorizationPolicy_Quorum).Quorum
+	// decide on a cluster for the next epoch. It is critical for availability
+	// that a majority replicas deem this cluster acceptable.
+	var nextEpochReplicas []*proto.Replica
+	for _, a := range ks.rs.AcceptableClusterChanges {
+		acceptors := make(map[uint64]struct{})
+		for id, b := range ks.rs.AcceptableClusterChanges {
+			if replicaSetsEquivalent(a.Cluster, b.Cluster) {
+				acceptors[id] = struct{}{}
+			}
+		}
+		if coname.CheckQuorum(quorum, acceptors) {
+			nextEpochReplicas = a.Cluster
+			break
+		}
+	}
+	return &proto.KeyserverStep{Type: &proto.KeyserverStep_EpochDelimiter{EpochDelimiter: &proto.EpochDelimiter{
+		EpochNumber:       ks.rs.LastEpochDelimiter.EpochNumber + 1,
+		Timestamp:         proto.Time(ks.clk.Now()),
+		NextEpochReplicas: replicaSetCanonical(nextEpochReplicas),
+	}}}
 }
 
 // updateEpochProposer either starts or stops the epoch delimiter proposer as necessary.
 func (ks *Keyserver) updateEpochProposer() {
-	want := ks.wantEpochProposer()
-	have := ks.epochProposer != nil
-	if have == want {
+	want := ks.desiredEpochProposal()
+	have := ks.outstandingEpochProposal
+	if have.Equal(want) {
 		return
 	}
 
-	switch want {
-	case true:
-		quorum := ks.serverAuthorized.PolicyType.(*proto.AuthorizationPolicy_Quorum).Quorum
-		// decide on a cluster for the next epoch. It is critical for availability
-		// that a majority replicas deem this cluster acceptable.
-		var nextEpochReplicas []*proto.Replica
-		for _, a := range ks.rs.AcceptableClusterChanges {
-			acceptors := make(map[uint64]struct{})
-			for id, b := range ks.rs.AcceptableClusterChanges {
-				if replicaSetsEquivalent(a.Cluster, b.Cluster) {
-					acceptors[id] = struct{}{}
-				}
-			}
-			if coname.CheckQuorum(quorum, acceptors) {
-				nextEpochReplicas = a.Cluster
-				break
-			}
-		}
-
-		ks.epochProposer = StartProposer(ks.log, ks.clk, ks.retryProposalInterval,
-			proto.MustMarshal(&proto.KeyserverStep{Type: &proto.KeyserverStep_EpochDelimiter{EpochDelimiter: &proto.EpochDelimiter{
-				EpochNumber:       ks.rs.LastEpochDelimiter.EpochNumber + 1,
-				Timestamp:         proto.Time(ks.clk.Now()),
-				NextEpochReplicas: replicaSetCanonical(nextEpochReplicas),
-			}}}),
-		)
-	case false:
+	if have != nil {
+		ks.outstandingEpochProposal = nil
 		ks.epochProposer.Stop()
 		ks.epochProposer = nil
+	}
+
+	if want != nil {
+		ks.outstandingEpochProposal = want
+		ks.epochProposer = StartProposer(ks.log, ks.clk, ks.retryProposalInterval, proto.MustMarshal(want))
 	}
 }
 
 // teh must be tableEpochHeads(ks.rs.LastEpochDelimiter.EpochNumber)
-func (ks *Keyserver) updateSignatureProposer(teh *proto.EncodedTimestampedEpochHead) {
+func (ks *Keyserver) desiredSignatureProposal(teh *proto.EncodedTimestampedEpochHead) *proto.KeyserverStep {
 	acceptCluster := teh.Head.NextEpochPolicy.Equal(&proto.AuthorizationPolicy{}) // no change
 	if !acceptCluster && ks.rs.OurAcceptableClusterChange != nil {
 		okPolicy := replicaSetMajorityPolicy(ks.rs.OurAcceptableClusterChange)
@@ -782,23 +800,34 @@ func (ks *Keyserver) updateSignatureProposer(teh *proto.EncodedTimestampedEpochH
 		}
 	}
 
-	want := ks.rs.ThisReplicaNeedsToSignLastEpoch && acceptCluster
-	have := ks.signatureProposer != nil
-	if have == want {
-		return
-	}
-
-	switch want {
-	case true:
+	if !(ks.rs.ThisReplicaNeedsToSignLastEpoch && acceptCluster) {
+		return nil
+	} else {
 		seh := &proto.SignedEpochHead{
 			Head:       *teh,
 			Signatures: map[uint64][]byte{ks.replicaID: ed25519.Sign(ks.sehKey, teh.Encoding)[:]},
 		}
-		ks.signatureProposer = StartProposer(ks.log, ks.clk, ks.retryProposalInterval,
-			proto.MustMarshal(&proto.KeyserverStep{Type: &proto.KeyserverStep_ReplicaSigned{ReplicaSigned: seh}}))
-	case false:
+		return &proto.KeyserverStep{Type: &proto.KeyserverStep_ReplicaSigned{ReplicaSigned: seh}}
+	}
+}
+
+// teh must be tableEpochHeads(ks.rs.LastEpochDelimiter.EpochNumber)
+func (ks *Keyserver) updateSignatureProposer(teh *proto.EncodedTimestampedEpochHead) {
+	want := ks.desiredSignatureProposal(teh)
+	have := ks.outstandingSignatureProposal
+	if have.Equal(want) {
+		return
+	}
+
+	if have != nil {
+		ks.outstandingSignatureProposal = nil
 		ks.signatureProposer.Stop()
 		ks.signatureProposer = nil
+	}
+
+	if want != nil {
+		ks.outstandingSignatureProposal = want
+		ks.signatureProposer = StartProposer(ks.log, ks.clk, ks.retryProposalInterval, proto.MustMarshal(want))
 	}
 }
 
