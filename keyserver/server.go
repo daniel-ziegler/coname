@@ -532,13 +532,14 @@ func (ks *Keyserver) step(step *proto.KeyserverStep, rs *proto.ReplicaState, wb 
 		epochNr := newSEH.Head.Head.Epoch
 		// get epoch head
 		tehBytes, err := ks.db.Get(tableEpochHeads(epochNr))
+		if err != nil {
+			log.Panicf("get tableEpochHeads(%d): %s (we received a signature for an epoch whose head we cannot load from our database)", epochNr, err)
+		}
 		teh := new(proto.EncodedTimestampedEpochHead)
 		if err := teh.Unmarshal(tehBytes); err != nil {
 			log.Panicf("ks.db.Get(tableEpochHeads(%d) fails to unmarshal: %s", epochNr, err)
 		}
-		if err != nil {
-			log.Panicf("get tableEpochHeads(%d): %s (we received a signature for an epoch whose head we cannot load from our database)", epochNr, err)
-		} // establishes: epochNr <= rs.LastEpochDelimiter.EpochNumber
+		// establishes: epochNr <= rs.LastEpochDelimiter.EpochNumber
 		// make sure that the signature is for the exact same epoch head we have
 		if got, want := tehBytes, newSEH.Head.Encoding; !bytes.Equal(got, want) {
 			log.Panicf("replica signed different head: wanted %x, got %x", want, got)
