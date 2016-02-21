@@ -244,7 +244,6 @@ func Open(cfg *proto.ReplicaConfig, db kv.DB, Listen func(string, string) (net.L
 
 	ks.leaderHint = true
 	ks.resetEpochTimers(ks.rs.LastEpochDelimiter.Timestamp.Time())
-	ks.updateEpochProposer() // TODO: move?
 
 	ks.sb = concurrent.NewSequenceBroadcast(ks.rs.NextIndexVerifier)
 
@@ -312,6 +311,8 @@ func Open(cfg *proto.ReplicaConfig, db kv.DB, Listen func(string, string) (net.L
 // Start makes the keyserver start handling requests (forks goroutines).
 func (ks *Keyserver) Start() {
 	ks.log.Start(ks.rs.NextIndexLog)
+	ks.updateEpochProposer()
+	ks.updateSignatureProposer()
 	go ks.replicationServer.Serve(ks.replicationListen)
 	if ks.publicServer != nil {
 		go ks.publicServer.Serve(ks.publicListen)
@@ -395,6 +396,7 @@ func (ks *Keyserver) run() {
 			}
 		case replicas := <-ks.setOurAcceptableClusterChange:
 			ks.rs.OurAcceptableClusterChange = replicas
+
 		case ks.leaderHint = <-ks.log.LeaderHintSet():
 			ks.updateEpochProposer()
 		case <-ks.minEpochIntervalTimer.C:
@@ -519,7 +521,7 @@ func (ks *Keyserver) step(step *proto.KeyserverStep, rs *proto.ReplicaState, wb 
 		sha3.ShakeSum256(rs.PreviousSummaryHash[:], teh.Head.Encoding)
 
 		wb.Put(tableEpochHeads(step.GetEpochDelimiter().EpochNumber), proto.MustMarshal(teh))
-		ks.updateSignatureProposer(teh)
+		ks.updateSignatureProposerWith(teh)
 		ks.updateEpochProposer()
 
 	case *proto.KeyserverStep_ReplicaSigned:
@@ -570,7 +572,7 @@ func (ks *Keyserver) step(step *proto.KeyserverStep, rs *proto.ReplicaState, wb 
 		// Is this node done with epochNr?
 		if rs.ThisReplicaNeedsToSignLastEpoch && newSEH.Signatures[ks.replicaID] != nil {
 			rs.ThisReplicaNeedsToSignLastEpoch = false
-			ks.updateSignatureProposer(teh)
+			ks.updateSignatureProposerWith(teh)
 			ks.updateEpochProposer()
 		}
 
@@ -667,6 +669,7 @@ func (ks *Keyserver) step(step *proto.KeyserverStep, rs *proto.ReplicaState, wb 
 		}
 		ks.rs.AcceptableClusterChanges[a.Replica] = a
 		ks.wr.Notify(step.UID, nil)
+		ks.updateEpochProposer()
 
 	default:
 		log.Panicf("unknown step pb in replicated log: %#v", step)
@@ -791,6 +794,9 @@ func (ks *Keyserver) updateEpochProposer() {
 
 // teh must be tableEpochHeads(ks.rs.LastEpochDelimiter.EpochNumber)
 func (ks *Keyserver) desiredSignatureProposal(teh *proto.EncodedTimestampedEpochHead) *proto.KeyserverStep {
+	if teh == nil {
+		return nil
+	}
 	acceptCluster := teh.Head.NextEpochPolicy.Equal(&proto.AuthorizationPolicy{}) // no change
 	if !acceptCluster && ks.rs.OurAcceptableClusterChange != nil {
 		okPolicy := replicaSetMajorityPolicy(ks.rs.OurAcceptableClusterChange)
@@ -812,8 +818,26 @@ func (ks *Keyserver) desiredSignatureProposal(teh *proto.EncodedTimestampedEpoch
 	}
 }
 
+func (ks *Keyserver) updateSignatureProposer() {
+	epochNr := ks.rs.LastEpochDelimiter.EpochNumber
+	tehBytes, err := ks.db.Get(tableEpochHeads(epochNr))
+	var teh *proto.EncodedTimestampedEpochHead
+	switch err {
+	case ks.db.ErrNotFound():
+		// desiredSignatureProposal handles the nil teh
+	case nil:
+		teh = new(proto.EncodedTimestampedEpochHead)
+		if err := teh.Unmarshal(tehBytes); err != nil {
+			log.Panicf("ks.db.Get(tableEpochHeads(%d) fails to unmarshal (last epoch head): %s", epochNr, err)
+		}
+	default:
+		log.Panicf("get tableEpochHeads(%d) (getting last epoch head): %s", epochNr, err)
+	}
+	ks.updateSignatureProposerWith(teh)
+}
+
 // teh must be tableEpochHeads(ks.rs.LastEpochDelimiter.EpochNumber)
-func (ks *Keyserver) updateSignatureProposer(teh *proto.EncodedTimestampedEpochHead) {
+func (ks *Keyserver) updateSignatureProposerWith(teh *proto.EncodedTimestampedEpochHead) {
 	want := ks.desiredSignatureProposal(teh)
 	have := ks.outstandingSignatureProposal
 	if have.Equal(want) {
