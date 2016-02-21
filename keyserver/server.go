@@ -620,7 +620,6 @@ func (ks *Keyserver) step(step *proto.KeyserverStep, rs *proto.ReplicaState, wb 
 			}
 		}
 
-		fmt.Println("PROCESSING SIGNATURE", newSEH.Head.Head.NextEpochPolicy)
 		if !newSEH.Head.Head.NextEpochPolicy.Equal(&proto.AuthorizationPolicy{}) {
 			if rs.LastEpochDelimiter.NextEpochReplicas == nil {
 				log.Fatalf("NextEpochPolicy is set but NextEpochReplicas is nil for epoch %d", epochNr)
@@ -791,7 +790,6 @@ func (ks *Keyserver) updateSignatureProposer(teh *proto.EncodedTimestampedEpochH
 
 	switch want {
 	case true:
-		fmt.Println("PROPOSING SIGNATURE", teh.Head.NextEpochPolicy)
 		seh := &proto.SignedEpochHead{
 			Head:       *teh,
 			Signatures: map[uint64][]byte{ks.replicaID: ed25519.Sign(ks.sehKey, teh.Encoding)[:]},
