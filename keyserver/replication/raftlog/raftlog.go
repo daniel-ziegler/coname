@@ -56,7 +56,6 @@ type raftLog struct {
 	grpcServer      *grpc.Server
 	dial            func(uint64) proto.RaftClient
 	grpcClientCache map[uint64]proto.RaftClient
-	grpcDropClient  chan uint64
 
 	stopOnce sync.Once
 	stop     chan struct{}
@@ -133,7 +132,6 @@ func (l *raftLog) Start(lo uint64) error {
 	l.waitCommitted = make(chan []byte, COMMITTED_BUFFER)
 	l.stop = make(chan struct{})
 	l.stopped = make(chan struct{})
-	l.grpcDropClient = make(chan uint64)
 	l.stopOnce = sync.Once{}
 	l.grpcClientCache = make(map[uint64]proto.RaftClient)
 
@@ -188,8 +186,6 @@ func (l *raftLog) run() {
 			return
 		case <-ticker.C:
 			l.node.Tick()
-		case r := <-l.grpcDropClient:
-			delete(l.grpcClientCache, r)
 		case rd := <-l.node.Ready():
 			if !raft.IsEmptySnap(rd.Snapshot) {
 				log.Panicf("snapshots not supported")
