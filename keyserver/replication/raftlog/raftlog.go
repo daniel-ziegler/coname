@@ -183,6 +183,11 @@ func (l *raftLog) run() {
 	for {
 		select {
 		case <-l.stop:
+			for _, client := range l.grpcClientCache {
+				if err := client.Close(); err != nil {
+					log.Printf("error closing raft client: %v\n", err)
+				}
+			}
 			return
 		case <-ticker.C:
 			l.node.Tick()
@@ -220,7 +225,7 @@ func (l *raftLog) run() {
 	}
 }
 
-// send synchronouslt accesses l.grpcConnectionCache and then asynchronously
+// send synchronously accesses l.grpcConnectionCache and then asynchronously
 // sends msg to msg.To, reporting an error if necessary.
 func (l *raftLog) send(msg *raftpb.Message) {
 	c, ok := l.grpcClientCache[msg.To]
@@ -230,7 +235,17 @@ func (l *raftLog) send(msg *raftpb.Message) {
 	}
 	go func(msg raftpb.Message) {
 		ctx, _ := context.WithTimeout(context.Background(), 10*l.tickInterval)
+		ctx, cancel := context.WithCancel(ctx)
+		done := make(chan struct{})
+		go func() {
+			select {
+			case <-l.stop:
+				cancel()
+			case <-done:
+			}
+		}()
 		_, err := c.Step(ctx, &msg)
+		close(done)
 		if err != nil {
 			log.Printf("raftlog send to %x: %s", msg.To, err)
 			l.node.ReportUnreachable(msg.To)

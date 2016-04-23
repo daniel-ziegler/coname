@@ -236,6 +236,7 @@ func encodeVarintRaftrpc(data []byte, offset int, v uint64) int {
 
 type RaftClient interface {
 	Step(ctx context.Context, in *raftpb.Message, opts ...grpc.CallOption) (*Nothing, error)
+	Close() error
 }
 
 type raftClient struct {
@@ -244,6 +245,10 @@ type raftClient struct {
 
 func NewRaftClient(cc *grpc.ClientConn) RaftClient {
 	return &raftClient{cc}
+}
+
+func (c *raftClient) Close() error {
+	return c.cc.Close()
 }
 
 func (c *raftClient) Step(ctx context.Context, in *raftpb.Message, opts ...grpc.CallOption) (*Nothing, error) {
