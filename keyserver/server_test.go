@@ -234,7 +234,13 @@ func setupReplicatedKeyserver(t *testing.T, nReplicas int) (ret *keyserverTestin
 		MaxEpochInterval:      proto.DurationStamp(tick),
 		ProposalRetryInterval: proto.DurationStamp(poll),
 
-		InsecureSkipEmailProof: true,
+		RegistrationPolicy: []*proto.RegistrationPolicy{
+			&proto.RegistrationPolicy{
+				PolicyType: &proto.RegistrationPolicy_InsecureSkipEmailProof{
+					InsecureSkipEmailProof: true,
+				},
+			},
+		},
 	}
 	for i := 0; i < nReplicas; i++ {
 		ret.cfg.InitialReplicas = append(ret.cfg.InitialReplicas, &proto.Replica{
@@ -411,7 +417,7 @@ func doRegister(
 	if err != nil {
 		k.t.Fatal(err)
 	}
-	pk := &proto.PublicKey{&proto.PublicKey_Ed25519{Ed25519: edpk[:]}}
+	pk := &proto.PublicKey{PubkeyType: &proto.PublicKey_Ed25519{Ed25519: edpk[:]}}
 	e, p := doUpdate(k, name, sk, pk, version, profileContents)
 	return sk, pk, e, p
 }
@@ -847,10 +853,10 @@ func TestKeyserverHKP(t *testing.T) {
 	}
 
 	if got, want := pgpBlock.Type, "PGP PUBLIC KEY BLOCK"; got != want {
-		t.Error("pgpBlock.Type: got %v but wanted %v", got, want)
+		t.Errorf("pgpBlock.Type: got %v but wanted %v", got, want)
 	}
 	if got, want := len(pgpBlock.Header), 0; got != want {
-		t.Error("len(pgpBlock.Header): got %v but wanted %v", got, want)
+		t.Errorf("len(pgpBlock.Header): got %v but wanted %v", got, want)
 	}
 	pgpKey, err := ioutil.ReadAll(pgpBlock.Body)
 	if err != nil {

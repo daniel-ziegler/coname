@@ -162,13 +162,27 @@ func main() {
 		MaxEpochInterval:      proto.DurationStamp(1 * time.Minute),
 		ProposalRetryInterval: proto.DurationStamp(1 * time.Second),
 
-		InitialReplicas:          replicas,
-		EmailProofToAddr:         "TODO@example.com",
-		EmailProofSubjectPrefix:  dkimProofPrefix,
-		EmailProofAllowedDomains: []string{dkimProofDomain},
-
-		// TODO get rid of this
-		InsecureSkipEmailProof: true,
+		InitialReplicas: replicas,
+		RegistrationPolicy: []*proto.RegistrationPolicy{
+			&proto.RegistrationPolicy{PolicyType: &proto.RegistrationPolicy_EmailProofByDKIM{
+				EmailProofByDKIM: &proto.EmailProofByDKIM{
+					AllowedDomains: []string{dkimProofDomain},
+					ToAddr:         "TODO@example.com",
+					SubjectPrefix:  dkimProofPrefix},
+			},
+			},
+			&proto.RegistrationPolicy{PolicyType: &proto.RegistrationPolicy_EmailProofByOIDC{
+				EmailProofByOIDC: &proto.EmailProofByOIDC{
+					OIDCConfig: []*proto.OIDCConfig{
+						&proto.OIDCConfig{AllowedDomains: []string{"yahoo.com"},
+							DiscoveryURL: "https://login.yahoo.com",
+							Issuer:       "https://api.login.yahoo.com",
+							ClientID:     "foobar"},
+					},
+				},
+			},
+			},
+		},
 	}
 
 	var cfgs []*proto.ReplicaConfig
@@ -259,7 +273,7 @@ func main() {
 	verificationPolicy := &proto.AuthorizationPolicy{
 		PublicKeys: make(map[uint64]*proto.PublicKey),
 		PolicyType: &proto.AuthorizationPolicy_Quorum{
-			&proto.QuorumExpr{Threshold: uint32(majority(len(hosts)))},
+			Quorum: &proto.QuorumExpr{Threshold: uint32(majority(len(hosts)))},
 		},
 	}
 	replicaIDs := []uint64{}

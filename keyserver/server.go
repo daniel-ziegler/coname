@@ -24,7 +24,10 @@ import (
 	"log"
 	"math"
 	"net"
+	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 	"time"
 
 	"golang.org/x/crypto/sha3"
@@ -38,6 +41,7 @@ import (
 	"github.com/yahoo/coname/httpfront"
 	"github.com/yahoo/coname/keyserver/kv"
 	"github.com/yahoo/coname/keyserver/merkletree"
+	"github.com/yahoo/coname/keyserver/oidc"
 	"github.com/yahoo/coname/keyserver/replication"
 	"github.com/yahoo/coname/proto"
 	"github.com/yahoo/coname/vrf"
@@ -52,12 +56,15 @@ type Keyserver struct {
 	serverID, replicaID uint64
 	serverAuthorized    *proto.AuthorizationPolicy
 
-	sehKey                   *[ed25519.PrivateKeySize]byte
-	vrfSecret                *[vrf.SecretKeySize]byte
-	emailProofToAddr         string
-	emailProofSubjectPrefix  string
-	emailProofAllowedDomains map[string]struct{}
-	insecureSkipEmailProof   bool
+	sehKey    *[ed25519.PrivateKeySize]byte
+	vrfSecret *[vrf.SecretKeySize]byte
+
+	dkimProofToAddr         string
+	dkimProofSubjectPrefix  string
+	dkimProofAllowedDomains map[string]struct{}
+	oidcProofConfig         []OIDCConfig
+
+	insecureSkipEmailProof bool
 
 	db  kv.DB
 	log replication.LogReplicator
@@ -97,6 +104,15 @@ type Keyserver struct {
 	stopOnce sync.Once
 	stop     chan struct{}
 	stopped  chan struct{}
+
+	inRotation   bool
+	inRotationMu sync.Mutex
+}
+
+// OIDCConfig manages an OpenID Connect object
+type OIDCConfig struct {
+	allowedDomains map[string]struct{}
+	oidcClient     *oidc.Client
 }
 
 type logReplicatorArgs struct {
@@ -144,19 +160,18 @@ func Open(cfg *proto.ReplicaConfig, db kv.DB, Listen func(string, string) (net.L
 	}
 
 	ks = &Keyserver{
-		realm:                    cfg.Realm,
-		serverID:                 cfg.ServerID,
-		replicaID:                cfg.ReplicaID,
-		sehKey:                   signingKey.(*[ed25519.PrivateKeySize]byte),
-		vrfSecret:                vrfKey.(*[vrf.SecretKeySize]byte),
-		emailProofToAddr:         cfg.EmailProofToAddr,
-		emailProofSubjectPrefix:  cfg.EmailProofSubjectPrefix,
-		emailProofAllowedDomains: make(map[string]struct{}),
-		laggingVerifierScan:      cfg.LaggingVerifierScan,
-		clientTimeout:            cfg.ClientTimeout.Duration(),
-		minEpochInterval:         cfg.MinEpochInterval.Duration(),
-		maxEpochInterval:         cfg.MaxEpochInterval.Duration(),
-		retryProposalInterval:    cfg.ProposalRetryInterval.Duration(),
+		realm:                   cfg.Realm,
+		serverID:                cfg.ServerID,
+		replicaID:               cfg.ReplicaID,
+		sehKey:                  signingKey.(*[ed25519.PrivateKeySize]byte),
+		vrfSecret:               vrfKey.(*[vrf.SecretKeySize]byte),
+		laggingVerifierScan:     cfg.LaggingVerifierScan,
+		clientTimeout:           cfg.ClientTimeout.Duration(),
+		minEpochInterval:        cfg.MinEpochInterval.Duration(),
+		maxEpochInterval:        cfg.MaxEpochInterval.Duration(),
+		retryProposalInterval:   cfg.ProposalRetryInterval.Duration(),
+		dkimProofAllowedDomains: make(map[string]struct{}),
+		oidcProofConfig:         make([]OIDCConfig, 0),
 
 		db:                 db,
 		stop:               make(chan struct{}),
@@ -166,6 +181,7 @@ func Open(cfg *proto.ReplicaConfig, db kv.DB, Listen func(string, string) (net.L
 		replicationServer:  grpc.NewServer(),
 
 		leaderHint: true,
+		inRotation: true,
 
 		setOurAcceptableClusterChange: make(chan []*proto.Replica),
 		clusterChangeBarrier:          make(chan struct{}),
@@ -175,13 +191,34 @@ func Open(cfg *proto.ReplicaConfig, db kv.DB, Listen func(string, string) (net.L
 		minEpochIntervalTimer: clk.Timer(0),
 		maxEpochIntervalTimer: clk.Timer(0),
 	}
-	for _, d := range cfg.EmailProofAllowedDomains {
-		ks.emailProofAllowedDomains[d] = struct{}{}
-	}
 
-	// TODO remove this before production
-	if cfg.KeyserverConfig.InsecureSkipEmailProof {
-		ks.insecureSkipEmailProof = true
+	for _, p := range cfg.RegistrationPolicy {
+		switch t := p.PolicyType.(type) {
+		case *proto.RegistrationPolicy_EmailProofByDKIM:
+			for _, d := range t.EmailProofByDKIM.AllowedDomains {
+				ks.dkimProofAllowedDomains[d] = struct{}{}
+			}
+			ks.dkimProofToAddr = t.EmailProofByDKIM.ToAddr
+			ks.dkimProofSubjectPrefix = t.EmailProofByDKIM.SubjectPrefix
+
+		case *proto.RegistrationPolicy_EmailProofByOIDC:
+			for _, c := range t.EmailProofByOIDC.OIDCConfig {
+				o := &oidc.Client{ClientID: c.ClientID, Issuer: c.Issuer, Validity: c.Validity.Duration(), DiscoveryURL: c.DiscoveryURL}
+				err := o.FetchPubKeys()
+				if err != nil {
+					return nil, err
+				}
+				oc := OIDCConfig{oidcClient: o}
+				oc.allowedDomains = make(map[string]struct{})
+				for _, d := range c.AllowedDomains {
+					oc.allowedDomains[d] = struct{}{}
+				}
+				ks.oidcProofConfig = append(ks.oidcProofConfig, oc)
+			}
+		// TODO remove this before production
+		case *proto.RegistrationPolicy_InsecureSkipEmailProof:
+			ks.insecureSkipEmailProof = true
+		}
 	}
 
 	switch replicaStateBytes, err := db.Get(tableReplicaState); err {
@@ -273,7 +310,7 @@ func Open(cfg *proto.ReplicaConfig, db kv.DB, Listen func(string, string) (net.L
 			return nil, err
 		}
 		ks.httpFrontListen = tls.NewListener(httpPlainListen, httpFrontTLS)
-		ks.httpFront = &httpfront.HTTPFront{Lookup: ks.Lookup, Update: ks.Update}
+		ks.httpFront = &httpfront.HTTPFront{Lookup: ks.Lookup, Update: ks.Update, InRotation: ks.InRotation}
 		defer func() {
 			if !ok {
 				ks.httpFrontListen.Close()
@@ -306,6 +343,8 @@ func (ks *Keyserver) Start() {
 		ks.httpFront.Start(ks.httpFrontListen)
 	}
 	go ks.run()
+	go ks.takeOutOfRotation()
+	go ks.takeInRotation()
 }
 
 // Stop cleanly shuts down the keyserver and then returns.
@@ -338,6 +377,13 @@ func (ks *Keyserver) Stop() {
 		ks.log.Stop()
 		ks.signatureBroadcast.Stop()
 	})
+}
+
+//InRotation indicates whether the keyserver host is in rotation
+func (ks *Keyserver) InRotation() bool {
+	ks.inRotationMu.Lock()
+	defer ks.inRotationMu.Unlock()
+	return ks.inRotation
 }
 
 // run is the CSP-style main loop of the keyserver. All code critical for safe
@@ -474,16 +520,16 @@ func (ks *Keyserver) step(step *proto.KeyserverStep, rs *proto.ReplicaState, wb 
 		if err != nil {
 			log.Panicf("ks.latestTree.GetRootHash() failed: %s", err)
 		}
-		teh := &proto.EncodedTimestampedEpochHead{proto.TimestampedEpochHead{
-			Head: proto.EncodedEpochHead{proto.EpochHead{
+		teh := &proto.EncodedTimestampedEpochHead{TimestampedEpochHead: proto.TimestampedEpochHead{
+			Head: proto.EncodedEpochHead{EpochHead: proto.EpochHead{
 				RootHash:            rootHash,
 				PreviousSummaryHash: rs.PreviousSummaryHash,
 				Realm:               ks.realm,
 				Epoch:               step.GetEpochDelimiter().EpochNumber,
 				IssueTime:           step.GetEpochDelimiter().Timestamp,
-			}, nil},
+			}, Encoding: nil},
 			Timestamp: step.GetEpochDelimiter().Timestamp,
-		}, nil}
+		}, Encoding: nil}
 		if step.GetEpochDelimiter().NextEpochReplicas != nil {
 			teh.Head.NextEpochPolicy = *replicaSetMajorityPolicy(step.GetEpochDelimiter().NextEpochReplicas)
 		}
@@ -578,7 +624,7 @@ func (ks *Keyserver) step(step *proto.KeyserverStep, rs *proto.ReplicaState, wb 
 		rs.LastEpochNeedsRatification = false
 		allSignaturesSEH := &proto.SignedEpochHead{Head: *teh, Signatures: allSignatures}
 		oldDeferredIO := deferredIO
-		deferredSendEpoch := ks.verifierLogAppend(&proto.VerifierStep{&proto.VerifierStep_Epoch{Epoch: allSignaturesSEH}}, rs, wb)
+		deferredSendEpoch := ks.verifierLogAppend(&proto.VerifierStep{Type: &proto.VerifierStep_Epoch{Epoch: allSignaturesSEH}}, rs, wb)
 		var deferredSendUpdates []func()
 		iter := ks.db.NewIterator(kv.BytesPrefix([]byte{tableUpdatesPendingRatificationPrefix}))
 		defer iter.Release()
@@ -588,7 +634,7 @@ func (ks *Keyserver) step(step *proto.KeyserverStep, rs *proto.ReplicaState, wb 
 			if err != nil {
 				log.Panicf("invalid pending update %x: %s", iter.Value(), err)
 			}
-			deferredSendUpdates = append(deferredSendUpdates, ks.verifierLogAppend(&proto.VerifierStep{&proto.VerifierStep_Update{Update: update}}, rs, wb))
+			deferredSendUpdates = append(deferredSendUpdates, ks.verifierLogAppend(&proto.VerifierStep{Type: &proto.VerifierStep_Update{Update: update}}, rs, wb))
 			wb.Delete(iter.Key())
 		}
 		deferredIO = func() {
@@ -643,6 +689,26 @@ func (ks *Keyserver) step(step *proto.KeyserverStep, rs *proto.ReplicaState, wb 
 		log.Panicf("unknown step pb in replicated log: %#v", step)
 	}
 	return
+}
+
+func (ks *Keyserver) takeOutOfRotation() {
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, syscall.SIGUSR1)
+	for _ = range ch {
+		ks.inRotationMu.Lock()
+		ks.inRotation = false
+		ks.inRotationMu.Unlock()
+	}
+}
+
+func (ks *Keyserver) takeInRotation() {
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, syscall.SIGUSR2)
+	for _ = range ch {
+		ks.inRotationMu.Lock()
+		ks.inRotation = true
+		ks.inRotationMu.Unlock()
+	}
 }
 
 type Proposer struct {
@@ -823,7 +889,7 @@ func (ks *Keyserver) resetEpochTimers(t time.Time) {
 }
 
 func (ks *Keyserver) allRatificationsForEpoch(epoch uint64) (map[uint64]*proto.SignedEpochHead, error) {
-	iter := ks.db.NewIterator(&kv.Range{tableRatifications(epoch, 0), tableRatifications(epoch+1, 0)})
+	iter := ks.db.NewIterator(&kv.Range{Start: tableRatifications(epoch, 0), Limit: tableRatifications(epoch+1, 0)})
 	defer iter.Release()
 	sehs := make(map[uint64]*proto.SignedEpochHead)
 	for iter.Next() {

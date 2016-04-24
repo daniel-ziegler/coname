@@ -15,8 +15,9 @@ import (
 
 // HTTPFront implements a dumb http proxy for the keyserver grpc interface
 type HTTPFront struct {
-	Lookup func(context.Context, *proto.LookupRequest) (*proto.LookupProof, error)
-	Update func(context.Context, *proto.UpdateRequest) (*proto.LookupProof, error)
+	Lookup     func(context.Context, *proto.LookupRequest) (*proto.LookupProof, error)
+	Update     func(context.Context, *proto.UpdateRequest) (*proto.LookupProof, error)
+	InRotation func() bool
 
 	ln net.Listener
 	sr http.Server
@@ -125,6 +126,19 @@ func (h *HTTPFront) doUpdate(b io.Reader, ctx context.Context, userid string) (*
 
 func (h *HTTPFront) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
+	method := r.Method
+
+	// service healthcheck
+	if (method == "HEAD" || method == "GET") && (path == "/status" || path == "/lb") {
+		if !h.InRotation() {
+			http.Error(w, `server out of rotation`, http.StatusNotFound)
+			return
+		}
+		if method == "GET" {
+			w.Write([]byte("OK"))
+		}
+		return
+	}
 
 	userid, err := auth(r)
 	if err != nil {
@@ -132,7 +146,7 @@ func (h *HTTPFront) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if r.Method != "POST" || (path != "/lookup" && path != "/update") {
+	if method != "POST" || (path != "/lookup" && path != "/update") {
 		http.Error(w, `this server only supports queries of the POST /lookup or POST /update`, http.StatusNotFound)
 		return
 	}
